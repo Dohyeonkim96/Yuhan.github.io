@@ -1,0 +1,190 @@
+<div class="section-card">
+  <h1 class="page-main-title">품목별 연간 수량 조회</h1>
+  <div id="messageArea" class="message"></div>
+  
+  <div class="filter-controls" style="padding: var(--spacing-md); background-color: #fdfdfe; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); margin-bottom: var(--spacing-lg);">
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="month">조회 월:</label>
+      <select id="month"></select>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="type-filter">분류:</label>
+      <select id="type-filter">
+        <option value="all">전체</option>
+      </select>
+    </div>
+    <button id="search-btn" class="button-primary">조회 <span id="loading" class="loading-spinner"></span></button>
+  </div>
+
+  <div id="results-container">
+      </div>
+</div>
+
+<script>
+  // 이 페이지의 전역 변수
+  let allDataForSummary = {}; 
+
+  // --- 페이지 초기화 ---
+  // 이 코드는 이 페이지 조각이 로드될 때 즉시 실행됩니다.
+  (function initializePage() {
+    // Chart.js 라이브러리가 없으면 동적으로 로드합니다.
+    if (typeof Chart === 'undefined') {
+        const chartScript = document.createElement('script');
+        chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+        chartScript.onload = setupEventListeners; // 로드 완료 후 이벤트 리스너 설정
+        document.head.appendChild(chartScript);
+    } else {
+        setupEventListeners();
+    }
+  })();
+
+  function setupEventListeners() {
+    const monthSelect = document.getElementById('month');
+    monthSelect.innerHTML = ''; // 중복 생성을 막기 위해 초기화
+    monthSelect.add(new Option('전체', 'all'));
+    
+    const currentMonth = new Date().getMonth() + 1;
+    for (let i = 1; i <= 12; i++) {
+      monthSelect.add(new Option(`${i}월`, i));
+    }
+    monthSelect.value = currentMonth;
+    
+    document.getElementById('search-btn').addEventListener('click', handleSearch);
+    document.getElementById('type-filter').addEventListener('change', handleFilterChange);
+  }
+
+
+  // --- 이벤트 핸들러 ---
+  function handleSearch() {
+    const month = document.getElementById('month').value;
+    document.getElementById('loading').style.display = 'inline-block';
+    document.getElementById('results-container').innerHTML = '';
+    showMessage('데이터를 집계하고 있습니다...', 'info');
+
+    google.script.run
+      .withSuccessHandler(onSuccess)
+      .withFailureHandler(err => showMessage('데이터 조회 오류: ' + err.message, 'error'))
+      .getShippingSummary(month); // [중요] 이름이 변경된 서버 함수 호출
+  }
+
+  function handleFilterChange(event) {
+    const selectedType = event.target.value;
+    document.querySelectorAll('.type-section').forEach(section => {
+      section.style.display = (selectedType === 'all' || section.dataset.type === selectedType) ? 'block' : 'none';
+    });
+    
+    document.querySelectorAll('.chart-container').forEach(c => c.style.display = 'none');
+    if (selectedType !== 'all') {
+      const section = document.querySelector(`.type-section[data-type="${selectedType}"]`);
+      if(section) {
+        const chartContainer = section.querySelector('.chart-container');
+        chartContainer.style.display = 'block';
+        if (!chartContainer.dataset.rendered) {
+          renderChartForType(selectedType, chartContainer);
+          chartContainer.dataset.rendered = 'true';
+        }
+      }
+    }
+  }
+
+
+  // --- 데이터 처리 및 UI 렌더링 ---
+  function onSuccess(data) {
+    document.getElementById('loading').style.display = 'none';
+    if (data.error) {
+      showMessage('데이터 조회 오류: ' + data.error, 'error');
+      return;
+    }
+    
+    allDataForSummary = data;
+    const container = document.getElementById('results-container');
+    const typeFilter = document.getElementById('type-filter');
+    const types = Object.keys(allDataForSummary).sort();
+
+    if (types.length === 0) {
+      showMessage('해당 월에 데이터가 없습니다.', 'info');
+      container.innerHTML = '';
+      return;
+    }
+
+    typeFilter.innerHTML = '<option value="all">전체</option>';
+    types.forEach(type => typeFilter.add(new Option(type, type)));
+
+    const displayYears = ['23', '24', '25'];
+    let html = '';
+    
+    types.forEach(type => {
+      const typeData = allDataForSummary[type];
+      html += `
+        <div class="type-section" data-type="${type}" style="margin-top: var(--spacing-lg);">
+          <h2 class="section-title">${type}</h2>
+          <div class="chart-container" style="display:none; padding: var(--spacing-md); background-color: var(--card-bg); border-radius: var(--border-radius-md); margin-top: var(--spacing-md); border: 1px solid var(--border-color); position: relative;"></div>
+          <div style="overflow-x:auto;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse; font-size: var(--font-size-sm);">
+              <thead>
+                <tr><th>품목코드</th><th style="min-width: 200px; text-align:left;">품명</th><th>${displayYears[0]}년</th><th>${displayYears[1]}년</th><th>${displayYears[2]}년</th></tr>
+              </thead>
+              <tbody>`;
+      
+      Object.keys(typeData.items).sort().forEach(code => {
+        const item = typeData.items[code];
+        html += `<tr><td>${code}</td><td style="text-align:left;">${item.itemName}</td>`;
+        displayYears.forEach(year => {
+          const quantity = item.quantitiesByYear[year] || 0;
+          html += `<td style="text-align:right;">${quantity > 0 ? formatNumberWithCommas(quantity) : '-'}</td>`;
+        });
+        html += `</tr>`;
+      });
+      
+      html += `</tbody><tfoot><tr><td colspan="2">소계</td>`;
+      displayYears.forEach(year => {
+        html += `<td style="text-align:right;">${formatNumberWithCommas(typeData.subtotals[year] || 0) || '-'}</td>`;
+      });
+      html += `</tr></tfoot></table></div></div>`;
+    });
+    
+    container.innerHTML = html;
+    showMessage('데이터 조회가 완료되었습니다.', 'success');
+  }
+
+  function renderChartForType(typeName, container) {
+    const typeData = allDataForSummary[typeName].items;
+    const itemCodes = Object.keys(typeData);
+    const displayYears = ['23', '24', '25'];
+    const labels = itemCodes.map(code => typeData[code].itemName);
+    
+    const chartHeight = 120 + labels.length * 40;
+    container.style.height = `${chartHeight}px`;
+
+    const datasets = displayYears.map((year, index) => {
+      const colors = ['rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)', 'rgba(75, 192, 192, 0.7)'];
+      return {
+        label: `${year}년`,
+        data: itemCodes.map(code => typeData[code].quantitiesByYear[year] || 0),
+        backgroundColor: colors[index],
+      };
+    });
+    
+    const canvas = document.createElement('canvas');
+    container.innerHTML = '';
+    container.appendChild(canvas);
+
+    new Chart(canvas, {
+      type: 'bar',
+      data: { labels: labels, datasets: datasets },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          title: { display: true, text: `'${typeName}' 품목별 연간 수량 비교`, font: { size: 16 } }
+        },
+        scales: { 
+          x: { beginAtZero: true },
+          y: { ticks: { autoSkip: false } }
+        }
+      }
+    });
+  }
+</script>
