@@ -1,0 +1,257 @@
+<style>
+  /* 이 페이지에만 적용되는 고유 스타일 */
+  .filter-controls {
+    display: flex; flex-wrap: wrap; gap: var(--spacing-md);
+    align-items: flex-end; margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md); background-color: #fdfdfe;
+    border: 1px solid var(--border-color); border-radius: var(--border-radius-md);
+  }
+  .data-table {
+    width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--font-size-sm);
+  }
+  .data-table th, .data-table td {
+    border-bottom: 1px solid var(--border-color); padding: var(--spacing-sm) var(--spacing-md);
+    text-align: left; white-space: nowrap; vertical-align: middle;
+  }
+  .data-table th {
+    background-color: #f8f9fa; font-weight: 700; color: var(--label-color);
+    text-align: center; border-top: 1px solid var(--border-color);
+  }
+  .data-table th:first-child { border-top-left-radius: var(--border-radius-md); }
+  .data-table th:last-child { border-top-right-radius: var(--border-radius-md); }
+  .data-table td.number { text-align: right; }
+  .data-table tbody tr:hover td { background-color: #f3f8fe; }
+  .data-table .clickable-item-name { color: var(--primary-color); text-decoration: underline; cursor: pointer; font-weight: 500;}
+  .data-table .clickable-item-name:hover { color: var(--accent-color); }
+  
+  /* Modal styles */
+  .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
+  .modal-content { background-color: var(--card-bg); margin: 8% auto; padding: var(--spacing-lg) var(--spacing-xl); border-radius: var(--border-radius-md); width: 90%; box-shadow: 0 5px 15px rgba(0,0,0,0.2); position: relative; }
+  #inventoryDetailModal .modal-content { max-width: 850px; }
+  #editLotDetailModal .modal-content { max-width: 550px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h3 { margin-top:0; color: var(--primary-color); font-size: var(--font-size-title-section); }
+  .modal-body p { margin: var(--spacing-sm) 0; font-size: var(--font-size-base); color: var(--text-color-secondary); }
+  .modal-body p strong { color: var(--text-color-primary); min-width: 100px; display: inline-block; font-weight:500;}
+  .modal-footer { margin-top: var(--spacing-lg); padding-top: var(--spacing-md); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: var(--spacing-sm); }
+  .close-button { color: var(--text-color-secondary); font-size: 28px; font-weight: bold; cursor: pointer; }
+  .close-button:hover { color: var(--text-color-primary); }
+</style>
+
+<div class="section-card">
+  <h1 class="page-main-title">재고 현황 조회</h1>
+  <div id="messageArea" class="message"></div>
+  <div class="filter-controls">
+    <div class="form-group" style="margin-bottom:0;">
+      <label for="categoryFilterSelect">분류 선택:</label>
+      <select id="categoryFilterSelect" onchange="applyCategoryFilter()"></select>
+    </div>
+  </div>
+  <div id="loading" class="loading-spinner" style="display:block; margin: var(--spacing-xl) auto;"></div>
+  <div style="overflow-x: auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>품목코드</th><th style="min-width: 200px; text-align:left;">제품명</th><th class="number">총 수량 (합계)</th><th>비고</th></tr>
+      </thead>
+      <tbody id="inventoryTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="inventoryDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>LOT별 상세 재고</h3>
+      <span class="close-button" onclick="closeInventoryModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p><strong>품목:</strong> <span id="modalDetailItemName" style="font-weight:bold; color:var(--text-color-primary);"></span> <span id="modalDetailItemCode" style="color:var(--text-color-secondary); font-size:0.9em;"></span></p>
+      <p><strong>분류:</strong> <span id="modalDetailClassification"></span></p>
+      <p><strong>총 합계 수량:</strong> <span id="modalDetailTotalQuantity" style="font-weight:bold; color:var(--primary-color);"></span></p>
+      <div style="margin-top: var(--spacing-sm); max-height: 300px; overflow-y: auto;">
+        <table class="data-table">
+          <thead><tr><th>LOT</th><th class="number">수량</th><th>제조일자</th><th>유통기한</th><th class="number">파렛트수량</th><th>비고</th><th>처리</th></tr></thead>
+          <tbody id="inventoryLotDetailTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="editLotDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>LOT 정보 수정</h3>
+      <span class="close-button" onclick="closeEditLotModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <p id="editModalItemNameLotInfo" style="font-weight:bold; margin-bottom:var(--spacing-md);"></p>
+      <input type="hidden" id="editLotSheetRowIndex">
+      <div class="form-group"><label for="editLotNumber">LOT 번호*</label><input type="text" id="editLotNumber" name="lotNumber" class="editable"></div>
+      <div class="form-group"><label for="editLotQuantity">수량*</label><input type="number" id="editLotQuantity" name="quantity" min="0" class="editable"></div>
+      <div class="form-group"><label for="editMfgDate">제조일자</label><input type="date" id="editMfgDate" name="mfgDate" class="editable"></div>
+      <div class="form-group"><label for="editExpDate">유통기한</label><input type="date" id="editExpDate" name="expDate" class="editable"></div>
+      <div class="form-group"><label for="editPalletQty">파렛트수량</label><input type="number" id="editPalletQty" name="palletQty" min="0" class="editable"></div>
+      <div class="form-group"><label for="editRemarks">비고</label><input type="text" id="editRemarks" name="remarks" class="editable"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="button-secondary" onclick="closeEditLotModal()">취소</button>
+      <button type="button" class="button-primary" onclick="saveLotUpdate()">저장 <span id="editLotSpinner" class="loading-spinner"></span></button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentAggregatedInventoryData = [];
+
+  // --- 페이지 초기화 ---
+  (function initializeInventoryPage() {
+    fetchInventoryData();
+    window.addEventListener('click', handleWindowClickForModal);
+    const thisScript = document.currentScript;
+    new MutationObserver((m, o) => !document.contains(thisScript) && (window.removeEventListener('click', handleWindowClickForModal), o.disconnect())).observe(document.body, { childList: true, subtree: true });
+  })();
+  
+  function handleWindowClickForModal(event) {
+    if (event.target.id === 'inventoryDetailModal') closeInventoryModal();
+    if (event.target.id === 'editLotDetailModal') closeEditLotModal();
+  }
+  
+  // --- 데이터 로딩 및 UI 렌더링 ---
+  function fetchInventoryData() {
+    document.getElementById('loading').style.display = 'block';
+    google.script.run
+      .withSuccessHandler(data => {
+        document.getElementById('loading').style.display = 'none';
+        currentAggregatedInventoryData = data || [];
+        const classifications = [...new Set(data.map(item => item.classification || '미분류'))].sort();
+        populateCategoryFilter(classifications);
+        renderInventorySummaryTable();
+        if (!data || data.length === 0) showMessage('조회된 재고 데이터가 없습니다.', 'info');
+      })
+      .withFailureHandler(err => {
+        document.getElementById('loading').style.display = 'none';
+        showMessage('재고 데이터 조회 오류: ' + err.message, 'error');
+      })
+      .getInventoryDetails(); 
+  }
+
+  function populateCategoryFilter(classifications) {
+    const select = document.getElementById('categoryFilterSelect');
+    select.innerHTML = '<option value="">전체 분류 보기</option>';
+    classifications.forEach(cat => select.add(new Option(cat, cat)));
+  }
+
+  function applyCategoryFilter() {
+    renderInventorySummaryTable(document.getElementById('categoryFilterSelect').value);
+  }
+
+  function renderInventorySummaryTable(selectedClassification = "") {
+    const tableBody = document.getElementById('inventoryTableBody');
+    tableBody.innerHTML = '';
+    const dataToRender = selectedClassification ? currentAggregatedInventoryData.filter(item => item.classification === selectedClassification) : currentAggregatedInventoryData;
+    if (dataToRender.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px;">해당 조건의 재고 데이터가 없습니다.</td></tr>`;
+      return;
+    }
+    dataToRender.forEach(item => {
+      tableBody.insertRow().innerHTML = `
+        <td>${item.itemCode || ''}</td>
+        <td style="text-align:left;"><span class="clickable-item-name" onclick="showLotDetailsModal('${item.itemCode}')">${item.itemName || ''}</span></td>
+        <td class="number">${formatNumberWithCommas(item.totalQuantity)}</td>
+        <td>${item.remarks || ''}</td>`;
+    });
+  }
+
+  // --- 모달 관련 로직 (상세보기, 수정, 삭제) ---
+  function showLotDetailsModal(itemCodeToFind) {
+    const item = currentAggregatedInventoryData.find(i => i.itemCode === itemCodeToFind);
+    if (!item) { showMessage('품목 상세 정보를 찾을 수 없습니다.', 'error'); return; }
+    
+    // [수정] 모달 내용 채우기 로직 변경
+    document.getElementById('modalDetailItemName').textContent = item.itemName || '-';
+    document.getElementById('modalDetailItemCode').textContent = `(${item.itemCode || '-'})`;
+    document.getElementById('modalDetailClassification').textContent = item.classification || '미분류';
+    document.getElementById('modalDetailTotalQuantity').textContent = formatNumberWithCommas(item.totalQuantity) || '0';
+    
+    const lotTbody = document.getElementById('inventoryLotDetailTableBody');
+    lotTbody.innerHTML = '';
+    if (item.lots && item.lots.length > 0) {
+      item.lots.forEach(lot => {
+        lotTbody.insertRow().innerHTML = `
+          <td>${lot.lot || '-'}</td><td class="number">${formatNumberWithCommas(lot.quantity)}</td>
+          <td>${lot.mfgDate || '-'}</td><td>${lot.expDate || '-'}</td>
+          <td class="number">${formatNumberWithCommas(lot.palletQty)}</td><td>${lot.remarks || '-'}</td>
+          <td style="text-align:center;">
+            <button class="button-secondary" style="padding:4px 8px;font-size:11px;" onclick="openEditLotModal(${lot.originalSheetRowIndex},'${item.itemCode}')">수정</button>
+            <button class="button-danger" style="padding:4px 8px;font-size:11px;" onclick="deleteInventoryLot(${lot.originalSheetRowIndex})">삭제</button>
+          </td>`;
+      });
+    } else {
+      lotTbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">LOT 정보가 없습니다.</td></tr>`;
+    }
+    document.getElementById('inventoryDetailModal').style.display = 'block';
+  }
+
+  function closeInventoryModal() { document.getElementById('inventoryDetailModal').style.display = 'none'; }
+
+  function openEditLotModal(sheetRowIndex, parentItemCode) {
+    const parentItem = currentAggregatedInventoryData.find(item => item.itemCode === parentItemCode);
+    const lotToEdit = parentItem?.lots.find(lot => lot.originalSheetRowIndex === sheetRowIndex);
+    if (!lotToEdit) { showMessage('수정할 LOT 정보를 찾지 못했습니다.', 'error'); return; }
+    
+    // [수정] 모달 내용 채우기 로직 변경
+    document.getElementById('editModalItemNameLotInfo').textContent = `${parentItem.itemName} (LOT: ${lotToEdit.lot})`;
+    document.getElementById('editLotSheetRowIndex').value = sheetRowIndex;
+    document.getElementById('editLotNumber').value = lotToEdit.lot || '';
+    document.getElementById('editLotQuantity').value = lotToEdit.quantity || '0';
+    document.getElementById('editMfgDate').value = lotToEdit.mfgDate || '';
+    document.getElementById('editExpDate').value = lotToEdit.expDate || '';
+    document.getElementById('editPalletQty').value = lotToEdit.palletQty || '';
+    document.getElementById('editRemarks').value = lotToEdit.remarks || '';
+    document.getElementById('editLotDetailModal').style.display = 'block';
+  }
+
+  function closeEditLotModal() { document.getElementById('editLotDetailModal').style.display = 'none'; }
+
+  function saveLotUpdate() {
+    const spinner = document.getElementById('editLotSpinner');
+    spinner.style.display = 'inline-block';
+    const updateData = {
+      sheetRowIndex: parseInt(document.getElementById('editLotSheetRowIndex').value),
+      newData: {
+        lot: document.getElementById('editLotNumber').value.trim(), quantity: Number(document.getElementById('editLotQuantity').value),
+        mfgDate: document.getElementById('editMfgDate').value, expDate: document.getElementById('editExpDate').value,
+        palletQty: document.getElementById('editPalletQty').value.trim(), remarks: document.getElementById('editRemarks').value.trim()
+      }
+    };
+    if (!updateData.newData.lot || isNaN(updateData.newData.quantity) || updateData.newData.quantity < 0) {
+      showMessage("LOT 번호와 0 이상의 수량을 정확히 입력해주세요.", "error");
+      spinner.style.display = 'none'; return;
+    }
+    google.script.run
+      .withSuccessHandler(res => {
+        spinner.style.display = 'none';
+        showMessage(res.message, res.success ? "success" : "error");
+        if(res.success) { closeEditLotModal(); closeInventoryModal(); fetchInventoryData(); }
+      })
+      .withFailureHandler(err => {
+        spinner.style.display = 'none';
+        showMessage("수정 중 오류 발생: " + err.message, "error");
+      })
+      .updateInventoryLotDetail(updateData);
+  }
+
+  function deleteInventoryLot(sheetRowIndex) {
+    if (confirm(`이 LOT 항목(시트 ${sheetRowIndex}행)을 정말 삭제하시겠습니까?`)) {
+      showMessage('LOT 정보 삭제 중...', 'info');
+      google.script.run
+        .withSuccessHandler(res => {
+          showMessage(res.message, res.success ? "success" : "error");
+          if(res.success) { closeInventoryModal(); fetchInventoryData(); }
+        })
+        .withFailureHandler(err => showMessage("삭제 중 오류 발생: " + err.message, "error"))
+        .deleteInventoryLotItem(sheetRowIndex);
+    }
+  }
+</script>
