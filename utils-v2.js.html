@@ -1,0 +1,16 @@
+<script>
+  function showMessage(text, type, timeout = 4000) {
+    const messageArea = document.querySelector('#content-area .message');
+    if (!messageArea) { console.error("Message area not found"); alert(text); return; }
+    messageArea.textContent = text;
+    messageArea.className = 'message ' + type;
+    if (messageArea.timerId) clearTimeout(messageArea.timerId);
+    messageArea.timerId = setTimeout(() => { messageArea.style.display = 'none'; }, timeout);
+  }
+
+  function formatNumberWithCommas(number) {
+    const num = Number(String(number).replace(/,/g, ''));
+    if (number === null || number === undefined || String(number).trim() === "" || isNaN(num)) return "";
+    return num.toLocaleString('ko-KR');
+  }
+</script>
