@@ -1,0 +1,188 @@
+<style>
+  .item-row-header, .item-row {
+    display: grid;
+    /* 요청일, 품목코드, 제품명, 입수, BOX, 수량, LOT, 제조일, 유통기한, 파렛트, 삭제 */
+    grid-template-columns: 1fr 1.2fr 1.8fr 0.6fr 0.7fr 0.8fr 1fr 1fr 1fr 0.7fr auto;
+    gap: var(--spacing-sm);
+    align-items: flex-end;
+    padding-bottom: var(--spacing-sm);
+    min-width: 1300px;
+  }
+  .item-row-header { font-weight: bold; font-size: var(--font-size-label); color: var(--label-color); text-align: center; border-bottom: 1px solid var(--border-color); }
+  .item-row { padding-top: var(--spacing-md); padding-bottom: var(--spacing-md); border-bottom: 1px dashed var(--border-color); }
+  .item-row:last-child { border-bottom: none; }
+  
+  .form-group .field-label { display: none; } /* 모바일 뷰에서만 보이도록 기본 숨김 */
+  .form-group .validation-message { font-size: 11px; color: var(--danger-color); height: 14px; margin-top:2px; }
+
+  .action-buttons { margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; }
+
+  @media (max-width: 1300px) {
+    .item-row-header { display: none; }
+    .item-row { min-width: 0; grid-template-columns: 1fr; gap: var(--spacing-md); padding-bottom: var(--spacing-lg); border-bottom: 2px solid var(--border-color); }
+    .form-group .field-label { display: block; margin-bottom: 2px; font-weight: 500; font-size: var(--font-size-label); color: var(--label-color); }
+  }
+</style>
+
+<div class="section-card">
+  <h1 class="page-main-title">출고 요청</h1>
+  <div id="messageArea" class="message"></div>
+  <div style="overflow-x: auto;">
+    <div class="item-row-header">
+      <div>요청일</div><div>품목코드</div><div>제품명</div><div>입수</div><div>BOX수량</div><div>수량</div><div>LOT</div><div>제조일자</div><div>유통기한</div><div>파렛트수량</div><div>삭제</div>
+    </div>
+    <div id="item-rows"></div>
+  </div>
+  <div class="action-buttons">
+    <button class="button-secondary" onclick="addRequestItemRow()">품목 추가</button>
+    <button class="button-primary" onclick="submitShipment()">출고 요청 등록<span id="submit-spinner" class="loading-spinner"></span></button>
+  </div>
+</div>
+
+<script>
+  let itemCounter_rq = 0; // 다른 페이지와의 변수명 충돌을 피하기 위해 접미사 추가
+  const rowDataStore_rq = {}; 
+
+  (function initializeRequestPage() {
+    addRequestItemRow();
+  })();
+
+  function addRequestItemRow() {
+    itemCounter_rq++;
+    const id = itemCounter_rq;
+    const container = document.getElementById("item-rows");
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "item-row";
+    rowDiv.id = `item-row-${id}`;
+    rowDiv.innerHTML = `
+      <div class="form-group"><label class="field-label">요청일</label><input type="date" id="shippingDate-${id}" class="editable"></div>
+      <div class="form-group"><label class="field-label">품목코드*</label><input type="text" id="itemCode-${id}" class="editable" onchange="fetchItemDetails(${id})" placeholder="유한품번 입력"></div>
+      <div class="form-group"><label class="field-label">제품명</label><input type="text" id="itemName-${id}" readonly></div>
+      <div class="form-group"><label class="field-label">입수</label><input type="text" id="packSize-${id}" readonly></div>
+      <div class="form-group"><label class="field-label">BOX수량</label><input type="text" id="boxQty-${id}" readonly></div>
+      <div class="form-group">
+        <label class="field-label">수량*</label><input type="number" id="quantity-${id}" class="editable" oninput="validateAndCalculate(${id})" min="1" disabled>
+        <div id="validation-msg-${id}" class="validation-message"></div>
+      </div>
+      <div class="form-group"><label class="field-label">LOT번호*</label><select id="lot-${id}" class="editable" onchange="onLotChange(${id})" disabled><option value="">품목코드 먼저 입력</option></select></div>
+      <div class="form-group"><label class="field-label">제조일자</label><input type="date" id="mfgDate-${id}" readonly></div>
+      <div class="form-group"><label class="field-label">유통기한</label><input type="date" id="expDate-${id}" readonly></div>
+      <div class="form-group"><label class="field-label">파렛트수량</label><input type="text" id="palletQty-${id}" readonly></div>
+      <div><label class="field-label">&nbsp;</label><button class="button-danger" onclick="removeRequestItemRow(${id})" style="height: 39px;">삭제</button></div>
+    `;
+    container.appendChild(rowDiv);
+    document.getElementById(`shippingDate-${id}`).valueAsDate = new Date();
+  }
+  
+  function removeRequestItemRow(id) {
+    document.getElementById(`item-row-${id}`)?.remove();
+    delete rowDataStore_rq[id];
+  }
+
+  function fetchItemDetails(id) {
+    const itemCode = document.getElementById(`itemCode-${id}`).value.trim();
+    // 행 초기화
+    document.getElementById(`itemName-${id}`).value = "";
+    document.getElementById(`packSize-${id}`).value = "";
+    const lotSelect = document.getElementById(`lot-${id}`);
+    lotSelect.innerHTML = '<option value="">품목코드 먼저 입력</option>';
+    lotSelect.disabled = true;
+
+    if (!itemCode) return;
+    showMessage("품목 정보 조회 중...", "info");
+    google.script.run
+      .withSuccessHandler(data => {
+        if (!data || data.lots.length === 0) {
+          showMessage(`오류: 품번 '${itemCode}'에 대한 정보 또는 재고가 없습니다.`, "error");
+          return;
+        }
+        rowDataStore_rq[id] = data;
+        document.getElementById(`itemName-${id}`).value = data.staticInfo.itemName;
+        document.getElementById(`packSize-${id}`).value = data.staticInfo.packSize;
+        data.lots.forEach((lot, index) => {
+          lotSelect.add(new Option(`${lot.lotNumber} (재고: ${lot.quantity})`, index));
+        });
+        lotSelect.disabled = false;
+        showMessage("품목 정보 조회 완료. LOT를 선택하세요.", "success");
+      })
+      .withFailureHandler(err => showMessage(`조회 실패: ${err.message}`, "error"))
+      .getInventoryDetailsByYuhanCode(itemCode);
+  }
+
+  function onLotChange(id) {
+    const lotIndex = document.getElementById(`lot-${id}`).value;
+    const quantityInput = document.getElementById(`quantity-${id}`);
+    if (lotIndex === "") {
+        Object.assign(document.getElementById(`mfgDate-${id}`), {value:''});
+        Object.assign(document.getElementById(`expDate-${id}`), {value:''});
+        Object.assign(quantityInput, {disabled:true, value:'', max:'', placeholder:''});
+        return;
+    }
+    const selectedLot = rowDataStore_rq[id].lots[lotIndex];
+    document.getElementById(`mfgDate-${id}`).value = selectedLot.mfgDate;
+    document.getElementById(`expDate-${id}`).value = selectedLot.expDate;
+    Object.assign(quantityInput, {disabled:false, max: selectedLot.quantity, placeholder: `최대 ${selectedLot.quantity}개`});
+  }
+
+  function validateAndCalculate(id) {
+    const data = rowDataStore_rq[id];
+    if (!data) return;
+    const quantity = parseInt(document.getElementById(`quantity-${id}`).value) || 0;
+    const packSize = data.staticInfo.packSize;
+    document.getElementById(`boxQty-${id}`).value = (packSize > 0) ? (quantity / packSize).toFixed(2) : 'N/A';
+    document.getElementById(`validation-msg-${id}`).textContent = (packSize > 0 && quantity % packSize !== 0) ? "BOX 단위 아님" : "";
+    document.getElementById(`palletQty-${id}`).value = Math.ceil(quantity / (data.staticInfo.itemsPerPallet || quantity)) || '';
+  }
+
+  function submitShipment() {
+    const spinner = document.getElementById("submit-spinner");
+    spinner.style.display = 'inline-block';
+    
+    const requests = Array.from(document.querySelectorAll("#item-rows .item-row")).map(row => {
+      const id = row.id.split('-')[2];
+      const data = rowDataStore_rq[id];
+      const lotIndex = document.getElementById(`lot-${id}`).value;
+      if (!data || lotIndex === "") return null;
+      const quantity = parseInt(document.getElementById(`quantity-${id}`).value);
+      const selectedLot = data.lots[lotIndex];
+      if (isNaN(quantity) || quantity <= 0 || quantity > selectedLot.quantity) {
+        showMessage(`품목(ID:${id})의 수량이 잘못되었거나 재고를 초과합니다.`, "error");
+        return 'invalid';
+      }
+      return {
+        shippingDate: document.getElementById(`shippingDate-${id}`).value,
+        itemCode: document.getElementById(`itemCode-${id}`).value.trim(),
+        itemName: data.staticInfo.itemName, lotNumber: selectedLot.lotNumber,
+        quantity: quantity, boxQty: document.getElementById(`boxQty-${id}`).value,
+        palletQty: document.getElementById(`palletQty-${id}`).value,
+        packSize: data.staticInfo.packSize, mfgDate: selectedLot.mfgDate, expDate: selectedLot.expDate
+      };
+    }).filter(r => r);
+
+    if (requests.some(r => r === 'invalid')) {
+      spinner.style.display = 'none'; return;
+    }
+    if (requests.length === 0) {
+      showMessage("출고할 품목을 올바르게 입력해주세요.", "error");
+      spinner.style.display = 'none'; return;
+    }
+    
+    showMessage("출고 요청을 기록하는 중...", "info");
+    google.script.run
+      .withSuccessHandler(res => {
+        spinner.style.display = 'none';
+        showMessage(res.message, res.success ? "success" : "error");
+        if (res.success) {
+          document.getElementById("item-rows").innerHTML = "";
+          itemCounter_rq = 0;
+          Object.keys(rowDataStore_rq).forEach(key => delete rowDataStore_rq[key]);
+          addRequestItemRow();
+        }
+      })
+      .withFailureHandler(err => {
+        spinner.style.display = 'none';
+        showMessage(`서버 오류: ${err.message}`, "error");
+      })
+      .submitShipmentRequest(requests);
+  }
+</script>
