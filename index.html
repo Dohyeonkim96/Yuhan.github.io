@@ -1,0 +1,203 @@
+<div class="section-card" id="order-creation-section">
+  <h1 class="page-main-title">발주서 생성</h1>
+  <div id="orderItemsContainer">
+    </div>
+  <div style="display: flex; justify-content: center; gap: var(--spacing-md); margin-top: var(--spacing-md); padding-top: var(--spacing-md); border-top: 1px solid var(--border-color);">
+    <button class="button-primary" onclick="submitOrder()">발주 등록 <span id="submitSpinner" class="loading-spinner"></span></button>
+    <button class="button-secondary" onclick="addOrderItem()">품목 추가</button>
+  </div>
+</section>
+
+<div class="section-card" id="order-status-section">
+  <h2 class="section-title">발주 현황</h2>
+  <div id="messageDisplayArea" class="message"></div>
+  <div class="filter-controls" style="padding: var(--spacing-md); background-color: #fdfdfe; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); margin-bottom: var(--spacing-md);">
+      <div class="form-group" style="margin-bottom:0;">
+          <label for="filterYuhanPartNo">유한품번</label>
+          <input type="text" id="filterYuhanPartNo" name="filterYuhanPartNo" class="editable" placeholder="품번으로 검색">
+      </div>
+      <button class="button-secondary" onclick="fetchFilteredOrders()">조회 <span id="filterSpinner" class="loading-spinner"></span></button>
+  </div>
+  <div style="overflow-x: auto;">
+    <table class="data-table" style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--font-size-sm);">
+      <thead>
+        <tr>
+          <th>발주일</th><th>사업부</th><th>유한품번</th><th>지에스켐 품번</th><th>품명</th><th>수량</th><th>납기일</th><th>삭제</th>
+        </tr>
+      </thead>
+      <tbody id="pendingOrdersTableBody">
+        <tr><td colspan="8" style="text-align: center; color: #777; padding: 20px;">조회된 발주 내역이 없습니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // 이 스크립트는 main.html에 의해 페이지가 로드될 때 자동으로 실행됩니다.
+  let itemCount = 0; 
+  let currentYuhanPartNoFilter = ""; 
+
+  // 페이지가 로드되면 바로 실행할 초기화 함수들
+  addOrderItem(); 
+  fetchFilteredOrders();
+
+  /**
+   * 새로운 발주 품목 입력 폼을 동적으로 생성하여 페이지에 추가합니다.
+   */
+  function addOrderItem() {
+    itemCount++;
+    const container = document.getElementById('orderItemsContainer');
+    if (!container) return;
+
+    const newItemDiv = document.createElement('div');
+    newItemDiv.className = 'order-item-card';
+    newItemDiv.id = `orderItem_${itemCount}`;
+    newItemDiv.style = "border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); padding: var(--spacing-md); margin-bottom: var(--spacing-md); background-color: var(--card-bg);"
+
+    const today = new Date();
+    const defaultIssueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    newItemDiv.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);">
+        <h3 style="margin: 0; color: var(--primary-color); font-size: 1.1em; font-weight: 500;">품목 ${itemCount}</h3>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm) var(--spacing-md);">
+        <div class="form-group"><label for="issueDate_${itemCount}">발주일*</label><input type="date" id="issueDate_${itemCount}" name="issueDate" class="editable" value="${defaultIssueDate}"></div>
+        <div class="form-group"><label for="businessUnit_${itemCount}">사업부</label><input type="text" id="businessUnit_${itemCount}" name="businessUnit" readonly></div>
+        <div class="form-group"><label for="yuhanPartNo_${itemCount}">유한품번*</label><input type="text" id="yuhanPartNo_${itemCount}" name="yuhanPartNo" class="editable" onchange="getYuhanInfo(${itemCount});" placeholder="유한품번 입력"></div>
+        <div class="form-group"><label for="gskemPartNo_${itemCount}">지에스켐 품번</label><input type="text" id="gskemPartNo_${itemCount}" name="gskemPartNo" readonly></div>
+        <div class="form-group" style="grid-column: span 2;"><label for="itemName_${itemCount}">품명*</label><input type="text" id="itemName_${itemCount}" name="itemName" readonly></div>
+        <div class="form-group"><label for="quantity_${itemCount}">수량*</label><input type="number" id="quantity_${itemCount}" name="quantity" class="editable" placeholder="수량" min="1"></div>
+        <div class="form-group"><label for="deliveryDate_${itemCount}">납기일*</label><input type="date" id="deliveryDate_${itemCount}" name="deliveryDate" class="editable"></div>
+      </div>
+      ${itemCount > 1 ? `<div style="text-align: right; margin-top: var(--spacing-sm); padding-top: var(--spacing-sm); border-top: 1px dashed var(--border-color);"><button class="button button-danger" onclick="removeOrderItem(${itemCount})">이 품목 삭제</button></div>` : ''}
+    `;
+    container.appendChild(newItemDiv);
+  }
+
+  function removeOrderItem(id) {
+    document.getElementById(`orderItem_${id}`)?.remove();
+  }
+
+  function getYuhanInfo(id) {
+    const yuhanPartNo = document.getElementById(`yuhanPartNo_${id}`).value.trim();
+    const gskemInput = document.getElementById(`gskemPartNo_${id}`);
+    const nameInput = document.getElementById(`itemName_${id}`);
+    const buInput = document.getElementById(`businessUnit_${id}`);
+    
+    if (!yuhanPartNo) {
+      gskemInput.value = ''; nameInput.value = ''; buInput.value = '';
+      return;
+    }
+    
+    showMessage('품번 정보 조회 중...', 'info');
+    google.script.run
+      .withSuccessHandler(res => {
+        if (gskemInput) {
+            if (res) {
+                gskemInput.value = res.지에스켐품번 || ''; nameInput.value = res.품명 || ''; buInput.value = res.사업부 || '';
+                showMessage('품번 정보가 조회되었습니다.', 'success');
+            } else {
+                gskemInput.value = ''; nameInput.value = ''; buInput.value = '';
+                showMessage('일치하는 품번 정보가 없습니다.', 'error');
+            }
+        }
+      })
+      .withFailureHandler(err => showMessage('조회 오류: ' + err.message, 'error'))
+      .getYuhanProductInfo(yuhanPartNo);
+  }
+
+  function submitOrder() {
+    const spinner = document.getElementById('submitSpinner');
+    spinner.style.display = 'inline-block';
+    
+    const orders = Array.from(document.querySelectorAll('#orderItemsContainer .order-item-card')).map(row => {
+        const id = row.id.split('_')[1];
+        return {
+          issueDate: row.querySelector(`#issueDate_${id}`).value,
+          yuhanPartNo: row.querySelector(`#yuhanPartNo_${id}`).value.trim(),
+          itemName: row.querySelector(`#itemName_${id}`).value.trim(),
+          quantity: row.querySelector(`#quantity_${id}`).value,
+          deliveryDate: row.querySelector(`#deliveryDate_${id}`).value,
+          businessUnit: row.querySelector(`#businessUnit_${id}`).value.trim(),
+          gskemPartNo: row.querySelector(`#gskemPartNo_${id}`).value.trim()
+        };
+    }).filter(o => o.yuhanPartNo && o.itemName && o.quantity > 0 && o.deliveryDate);
+
+    if (orders.length === 0) {
+        showMessage('제출할 유효한 품목이 없습니다. 필수 항목(*)을 확인해주세요.', 'error');
+        spinner.style.display = 'none';
+        return;
+    }
+    
+    showMessage('발주서 등록 중...', 'info');
+    google.script.run
+      .withSuccessHandler(res => {
+        spinner.style.display = 'none';
+        showMessage(res.message, res.success ? 'success' : 'error');
+        if (res.success) {
+            document.getElementById('orderItemsContainer').innerHTML = '';
+            itemCount = 0;
+            addOrderItem();
+            fetchFilteredOrders();
+        }
+      })
+      .withFailureHandler(err => {
+        spinner.style.display = 'none';
+        showMessage('서버 오류: ' + err.message, 'error');
+      })
+      .submitOrderToSheet(orders);
+  }
+
+  function fetchFilteredOrders() {
+    const spinner = document.getElementById('filterSpinner');
+    spinner.style.display = 'inline-block';
+    currentYuhanPartNoFilter = document.getElementById('filterYuhanPartNo').value.trim();
+    const tableBody = document.getElementById('pendingOrdersTableBody');
+    tableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 20px;">현황 조회 중...</td></tr>`;
+
+    google.script.run
+      .withSuccessHandler(data => {
+        spinner.style.display = 'none';
+        const headers = data.shift();
+        renderFetchedOrders(data);
+      })
+      .withFailureHandler(err => {
+        spinner.style.display = 'none';
+        showMessage('현황 조회 오류: ' + err.message, 'error');
+        renderFetchedOrders([]);
+      })
+      .getOrdersByDateRange({ yuhanPartNo: currentYuhanPartNoFilter || null });
+  }
+
+  function renderFetchedOrders(orders) {
+    const tableBody = document.getElementById('pendingOrdersTableBody');
+    tableBody.innerHTML = ''; 
+    if (!orders || orders.length === 0) {
+      tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">조회된 발주 내역이 없습니다.</td></tr>';
+      return;
+    }
+    orders.forEach(order => {
+      const originalRowIndex = order[7];
+      const row = tableBody.insertRow();
+      row.innerHTML = `
+        <td>${order[0]}</td><td>${order[1]}</td><td>${order[2]}</td><td>${order[3]}</td>
+        <td style="text-align:left;">${order[4]}</td><td style="text-align:right;">${formatNumberWithCommas(order[5])}</td>
+        <td>${order[6]}</td>
+        <td style="text-align:center;"><button class="button button-danger" style="padding: 4px 8px; font-size:11px;" onclick="removePendingOrderItem(${originalRowIndex})">삭제</button></td>`;
+    });
+  }
+
+  function removePendingOrderItem(rowIndex) {
+    if (confirm(`이 발주 내역을 정말 삭제하시겠습니까?`)) {
+      showMessage('삭제 중...', 'info');
+      google.script.run
+        .withSuccessHandler(res => {
+          showMessage(res.message, res.success ? 'success' : 'error');
+          if (res.success) fetchFilteredOrders(); 
+        })
+        .withFailureHandler(err => showMessage('삭제 오류: ' + err.message, 'error'))
+        .deleteOrderRow(rowIndex);
+    }
+  }
+</script>
