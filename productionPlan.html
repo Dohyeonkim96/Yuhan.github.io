@@ -1,0 +1,344 @@
+<style>
+  .plan-input-container {
+    max-width: 1200px;
+    margin: 0 auto; /* 가운데 정렬 */
+  }
+  .item-row-header {
+    display: none; /* 모바일에서는 기본적으로 숨김 */
+    grid-template-columns: 1fr 1.5fr 1.5fr 2fr 0.8fr max-content; 
+    gap: var(--spacing-sm) var(--spacing-md);
+    font-weight: bold;
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--label-color);
+  }
+  .item-row { 
+    display: grid; 
+    grid-template-columns: 1fr; /* 모바일에서는 1단 그리드 */
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+  }
+  .item-row .form-group { margin-bottom: 0;}
+  .item-row .form-group .field-label { display: block; } /* 모바일에서는 라벨 항상 표시 */
+  .item-row .button-danger { height: calc(var(--font-size-input) + 22px); }
+  
+  .calendar-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-md); margin-bottom: var(--spacing-md);}
+  
+  #calendarDisplay table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top:var(--spacing-md); border: 1px solid var(--border-color); }
+  #calendarDisplay th, #calendarDisplay td { border: 1px solid var(--border-color); padding: var(--spacing-xs); text-align: left; height: 110px; vertical-align: top; font-size: 0.8rem; }
+  #calendarDisplay th { background-color: #f5f5f5; height: auto; font-weight: 700; color: var(--label-color); text-align:center; padding: var(--spacing-sm) 0; }
+  #calendarDisplay td .day-number { font-weight: bold; display: block; margin-bottom: 4px; text-align:right; font-size: 0.9em; color: var(--text-color-secondary); padding-right: 4px;}
+  #calendarDisplay td .plan-item-wrapper { max-height: calc(110px - 20px); overflow-y:auto; padding-right: 2px; }
+  #calendarDisplay td .plan-item-wrapper::-webkit-scrollbar { width: 4px; }
+  #calendarDisplay td .plan-item-wrapper::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius:2px;}
+  #calendarDisplay td .plan-item { font-size: 0.9em; margin-bottom: 3px; background-color: var(--info-color); color: white; padding: 4px 6px; border-radius: var(--border-radius-sm); word-break: break-all; line-height: 1.3; cursor: pointer; border: 1px solid var(--accent-color); }
+  #calendarDisplay td .plan-item:hover { background-color: var(--accent-color); border-color: var(--primary-color);}
+  #calendarDisplay td .plan-item strong { font-weight: 500; } 
+  .other-month { background-color: #fafafa; }
+  .sunday .day-number { color: var(--danger-color); } 
+  .saturday .day-number { color: var(--info-color); } 
+  .today { background-color: var(--input-bg-editable); border: 2px solid var(--accent-color); } 
+
+  .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
+  .modal-content { background-color: var(--card-bg); margin: 10% auto; padding: var(--spacing-lg) var(--spacing-xl); border-radius: var(--border-radius-md); width: 90%; max-width: 550px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h3 { margin-top:0; color: var(--primary-color); }
+  .modal-body p { margin: var(--spacing-sm) 0; line-height: 1.6; }
+  .modal-body p strong { color: var(--text-color-primary); min-width: 100px; display: inline-block; font-weight:500;}
+  .modal-footer { margin-top: var(--spacing-lg); padding-top: var(--spacing-md); border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: var(--spacing-sm); }
+  .close-button { color: var(--text-color-secondary); font-size: 28px; font-weight: bold; cursor: pointer; }
+
+  /* [수정] 넓은 화면에 대한 반응형 스타일 */
+  @media (min-width: 1201px) {
+    .item-row-header { display: grid; }
+    .item-row {
+      grid-template-columns: 1fr 1.5fr 1.5fr 2fr 0.8fr max-content;
+      border: none;
+      padding: 0 0 var(--spacing-sm) 0;
+      border-bottom: 1px dashed var(--border-color);
+      border-radius: 0;
+    }
+    .item-row .form-group .field-label { display: none; } /* 넓은 화면에서는 헤더가 있으므로 라벨 숨김 */
+  }
+</style>
+
+<div class="section-card">
+  <h1 class="page-main-title">생산 계획 관리</h1>
+  <div id="messageArea" class="message"></div>
+
+  <div class="form-section" style="border: 1px solid var(--border-color); border-radius: var(--border-radius-md); padding: var(--spacing-md); margin-bottom: var(--spacing-lg);">
+    <h2 class="section-title">새 계획 입력</h2>
+    <div class="plan-input-container">
+      <div class="item-row-header">
+        <div>생산일*</div><div>지에스켐 품번*</div><div>유한품번</div><div>품명</div><div>수량*</div><div>삭제</div>
+      </div>
+      <div id="planItemsContainer"></div>
+    </div>
+    <div style="display: flex; gap: var(--spacing-sm); margin-top: var(--spacing-md); border-top: 1px solid var(--border-color); padding-top: var(--spacing-md);">
+      <button type="button" class="button-primary" onclick="submitNewProductionPlans()">계획 등록</button>
+      <button type="button" class="button-secondary" onclick="addPlanItemEntry()">새 품목 추가</button>
+    </div>
+  </div>
+
+  <div id="monthlyCalendarArea" style="margin-top: var(--spacing-xl);">
+    <h2 class="section-title">월간 생산계획</h2>
+    <div class="calendar-controls">
+      <div class="form-group" style="margin:0; flex-direction:row; align-items:center;">
+        <label for="calendarMonth" style="margin:0 var(--spacing-xs) 0 0;">조회 월:</label>
+        <input type="month" id="calendarMonth" class="editable" onchange="loadCalendarData()">
+      </div>
+      <button class="button-secondary" onclick="loadCalendarData()"><i class="fas fa-sync-alt" style="font-size: 0.9em; margin-right: 4px;"></i> 새로고침</button>
+    </div>
+    <div id="calendarDisplay"></div>
+  </div>
+</div>
+
+<div id="planDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header"><h3>생산 계획 세부 정보</h3><span class="close-button" onclick="closeModal('planDetailModal')">&times;</span></div>
+    <div id="modal-body" class="modal-body"></div>
+    <div class="modal-footer">
+      <button type="button" class="button-secondary" onclick="openEditModal()">수정</button>
+      <button type="button" class="button-danger" onclick="deletePlanFromModal()">삭제</button>
+    </div>
+  </div>
+</div>
+
+<div id="editPlanModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header"><h3>생산 계획 수정</h3><span class="close-button" onclick="closeModal('editPlanModal')">&times;</span></div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-row-index">
+      <div class="form-group"><label>생산일*</label><input type="date" id="edit-productionDate" class="editable"></div>
+      <div class="form-group"><label>지에스켐 품번*</label><input type="text" id="edit-gskemPartNo" class="editable" onchange="fetchProductDetailsForEdit()"></div>
+      <div class="form-group"><label>유한품번</label><input type="text" id="edit-yuhanPartNo" readonly></div>
+      <div class="form-group"><label>품명</label><input type="text" id="edit-itemName" readonly></div>
+      <div class="form-group"><label>수량*</label><input type="number" id="edit-quantity" min="1" class="editable"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="button-secondary" onclick="closeModal('editPlanModal')">취소</button>
+      <button type="button" class="button-primary" onclick="submitPlanUpdate()">저장</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  const state = {
+    calendarPlans: [],
+    currentDetailPlanId: null
+  };
+
+  (function initializePage(){
+    const today = new Date();
+    document.getElementById('calendarMonth').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+    addPlanItemEntry();
+    loadCalendarData();
+    
+    document.getElementById('calendarDisplay').addEventListener('click', e => {
+      const planItem = e.target.closest('.plan-item');
+      if (planItem?.dataset.planId) showPlanDetail(parseInt(planItem.dataset.planId));
+    });
+    window.addEventListener('click', e => {
+      if(e.target.matches('.modal')) closeModal(e.target.id);
+    });
+    
+    const thisScript = document.currentScript;
+    new MutationObserver((m, o) => !document.contains(thisScript) && o.disconnect()).observe(document.body, { childList: true, subtree: true });
+  })();
+
+  function addPlanItemEntry() {
+    const newItemRow = document.createElement('div');
+    newItemRow.className = 'item-row';
+    newItemRow.innerHTML = `
+      <div class="form-group"><label class="field-label">생산일*</label><input type="date" name="productionDate" class="editable" value="${new Date().toISOString().slice(0, 10)}"></div>
+      <div class="form-group"><label class="field-label">지에스켐 품번*</label><input type="text" name="gskemPartNo" class="editable" onchange="fetchProductDetails(this.closest('.item-row'))"></div>
+      <div class="form-group"><label class="field-label">유한품번</label><input type="text" name="yuhanPartNo" readonly></div>
+      <div class="form-group"><label class="field-label">품명</label><input type="text" name="itemName" readonly></div>
+      <div class="form-group"><label class="field-label">수량*</label><input type="number" name="quantity" min="1" class="editable" value="1"></div>
+      <div class="form-group"><label class="field-label">&nbsp;</label><button type="button" class="button-danger" onclick="this.closest('.item-row').remove()">삭제</button></div>
+    `;
+    document.getElementById('planItemsContainer').appendChild(newItemRow);
+  }
+
+  function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if(modal) modal.style.display = 'none';
+  }
+
+  function fetchProductDetails(row) {
+    const gskemPartNo = row.querySelector(`[name='gskemPartNo']`).value.trim();
+    if (!gskemPartNo) return;
+    google.script.run
+      .withSuccessHandler(data => {
+        if(row && data) {
+          row.querySelector(`[name='yuhanPartNo']`).value = data['유한 품번'] || '';
+          row.querySelector(`[name='itemName']`).value = data['품명'] || '해당 품번 없음';
+        }
+      })
+      .getProductInfoByGSKEM(gskemPartNo);
+  }
+
+  function submitNewProductionPlans() {
+    const items = Array.from(document.querySelectorAll('#planItemsContainer .item-row')).map(row => ({
+      productionDate: row.querySelector('[name="productionDate"]').value,
+      itemName: row.querySelector('[name="itemName"]').value.trim(),
+      quantity: Number(row.querySelector('[name="quantity"]').value),
+      gskemPartNo: row.querySelector('[name="gskemPartNo"]').value.trim(),
+      yuhanPartNo: row.querySelector('[name="yuhanPartNo"]').value.trim(),
+    })).filter(item => item.itemName && item.itemName !== "해당 품번 없음" && item.quantity > 0);
+    
+    if (items.length === 0) { showMessage('저장할 유효한 품목이 없습니다.', 'error'); return; }
+    
+    showMessage('계획 등록 중...', 'info');
+    google.script.run
+      .withSuccessHandler(handleServerResponse)
+      .withFailureHandler(handleServerError)
+      .saveProductionPlanItems(items);
+  }
+
+  function loadCalendarData() {
+    const calendarMonthInput = document.getElementById('calendarMonth');
+    if (!calendarMonthInput || !calendarMonthInput.value) {
+        showMessage('조회할 연도와 월을 선택해주세요.', 'error');
+        return;
+    }
+    const [year, month] = calendarMonthInput.value.split('-');
+    showMessage('달력 데이터를 로드 중입니다...', 'info');
+    google.script.run
+      .withSuccessHandler(plans => {
+        state.calendarPlans = plans || [];
+        renderCalendar(parseInt(year), parseInt(month), state.calendarPlans);
+        showMessage('달력 로드 완료.', 'success');
+      })
+      .withFailureHandler(handleServerError)
+      .getProductionPlansForCalendar(year, month);
+  }
+
+  function handleServerResponse(res) {
+    showMessage(res.message, res.success ? 'success' : 'error');
+    if (res.success) {
+      loadCalendarData();
+    }
+  }
+
+  function handleServerError(err) { showMessage(`서버 오류: ${err.message}`, 'error'); }
+
+  function renderCalendar(year, month, plans) {
+    const calendarDiv = document.getElementById('calendarDisplay');
+    try {
+      let html = `<table><thead><tr><th>일</th><th>월</th><th>화</th><th>수</th><th>목</th><th>금</th><th>토</th></tr></thead><tbody>`;
+      const firstDay = new Date(year, month - 1, 1), lastDay = new Date(year, month, 0);
+      const today = new Date().toISOString().slice(0, 10);
+      let date = 1;
+      for (let i = 0; i < 6; i++) {
+        html += `<tr>`;
+        for (let j = 0; j < 7; j++) {
+          if (i === 0 && j < firstDay.getDay() || date > lastDay.getDate()) {
+            html += `<td class="other-month"></td>`;
+          } else {
+            let dStr = `${year}-${String(month).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+            let classes = j === 0 ? "sunday" : (j === 6 ? "saturday" : "");
+            if (dStr === today) classes += " today";
+            html += `<td class="${classes}"><span class="day-number">${date}</span><div class="plan-item-wrapper">`;
+            const dailyPlans = plans.filter(p => p.date === dStr);
+            if (dailyPlans) {
+                dailyPlans.forEach(p => {
+                    html += `<div class="plan-item" data-plan-id="${p.originalSheetRowIndex}"><strong>${p.itemName.substring(0, 10)}:</strong> ${formatNumberWithCommas(p.quantity)}</div>`;
+                });
+            }
+            html += `</div></td>`;
+            date++;
+          }
+        }
+        html += `</tr>`;
+        if (date > lastDay.getDate()) break;
+      }
+      calendarDiv.innerHTML = html + `</tbody></table>`;
+    } catch (e) {
+      calendarDiv.innerHTML = `<div class="message error">달력 렌더링 중 오류가 발생했습니다: ${e.message}</div>`;
+      console.error(e);
+    }
+  }
+  
+  function showPlanDetail(planId) {
+    const plan = state.calendarPlans.find(p => p.originalSheetRowIndex === planId);
+    if (!plan) return;
+    
+    state.currentDetailPlanId = planId;
+    document.getElementById('modal-body').innerHTML = `
+      <p><strong>생산일:</strong> ${plan.date || '-'}</p>
+      <p><strong>유한품번:</strong> ${plan.yuhanPartNo || '-'}</p>
+      <p><strong>지에스켐 품번:</strong> ${plan.gskemPartNo || '-'}</p>
+      <p><strong>품명:</strong> ${plan.itemName || '-'}</p>
+      <p><strong>수량:</strong> ${formatNumberWithCommas(plan.quantity) || '-'}</p>
+    `;
+    document.getElementById('planDetailModal').style.display = 'block';
+  }
+
+  function deletePlanFromModal() {
+    if (confirm(`이 생산 계획을 정말 삭제하시겠습니까?`)) {
+      showMessage('삭제 처리 중...', 'info');
+      google.script.run
+        .withSuccessHandler(res => {
+            closeModal('planDetailModal');
+            handleServerResponse(res);
+        })
+        .withFailureHandler(handleServerError)
+        .deleteProductionPlan(state.currentDetailPlanId);
+    }
+  }
+
+  function openEditModal() {
+    const plan = state.calendarPlans.find(p => p.originalSheetRowIndex === state.currentDetailPlanId);
+    if (!plan) return;
+    
+    closeModal('planDetailModal');
+    document.getElementById('edit-row-index').value = plan.originalSheetRowIndex;
+    document.getElementById('edit-productionDate').value = plan.date;
+    document.getElementById('edit-gskemPartNo').value = plan.gskemPartNo;
+    document.getElementById('edit-yuhanPartNo').value = plan.yuhanPartNo;
+    document.getElementById('edit-itemName').value = plan.itemName;
+    document.getElementById('edit-quantity').value = plan.quantity;
+    document.getElementById('editPlanModal').style.display = 'block';
+  }
+
+  function fetchProductDetailsForEdit() {
+    const gskemPartNo = document.getElementById('edit-gskemPartNo').value.trim();
+    if (!gskemPartNo) return;
+    google.script.run
+      .withSuccessHandler(data => {
+        if(data) {
+          document.getElementById('edit-yuhanPartNo').value = data['유한 품번'] || '';
+          document.getElementById('edit-itemName').value = data['품명'] || '해당 품번 없음';
+        }
+      })
+      .getProductInfoByGSKEM(gskemPartNo);
+  }
+
+  function submitPlanUpdate() {
+    const newData = {
+      productionDate: document.getElementById('edit-productionDate').value,
+      gskemPartNo: document.getElementById('edit-gskemPartNo').value,
+      yuhanPartNo: document.getElementById('edit-yuhanPartNo').value,
+      itemName: document.getElementById('edit-itemName').value,
+      quantity: document.getElementById('edit-quantity').value,
+    };
+    const updateInfo = {
+      rowIndex: document.getElementById('edit-row-index').value,
+      newData: newData
+    };
+    
+    showMessage('계획 수정 중...', 'info');
+    google.script.run
+      .withSuccessHandler(res => {
+        closeModal('editPlanModal');
+        handleServerResponse(res);
+      })
+      .withFailureHandler(handleServerError)
+      .updateProductionPlanItem(updateInfo);
+  }
+</script>
