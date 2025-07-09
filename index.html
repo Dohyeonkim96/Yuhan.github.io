@@ -95,7 +95,7 @@
 
 <div class="section-card" id="order-creation-section">
   <h1 class="page-main-title">발주서 생성</h1>
-  <div id="messageArea" class="message"></div>
+  <div id="creationMessageArea" class="message"></div>
   <div id="orderItemsContainer"></div>
   <div class="main-actions-container">
     <button class="button-primary" onclick="submitOrder()">발주 등록 <span id="submitSpinner" class="loading-spinner"></span></button>
@@ -143,16 +143,10 @@
   let dashboardDataStore = [];
   let areFiltersPopulated = false;
 
-  // 페이지가 로드되면 바로 실행되는 부분입니다.
   (function initializePage() {
-    // 1. '품목 1'을 기본으로 추가합니다.
     addOrderItem();
-    // 2. '발주 현황' 목록을 자동으로 조회합니다.
     fetchOrderStatusData();
-
     window.addEventListener('click', e => { if (e.target.id === 'order-details-modal') closeDetailsModal(); });
-    const thisScript = document.currentScript;
-    new MutationObserver((m, o) => !document.contains(thisScript) && o.disconnect()).observe(document.body, { childList: true, subtree: true });
   })();
 
   function addOrderItem() {
@@ -208,20 +202,28 @@
     const gskemInput = itemCard.querySelector('[name="gskemPartNo"]');
     const nameInput = itemCard.querySelector('[name="itemName"]');
     const buInput = itemCard.querySelector('[name="businessUnit"]');
+    // 필드 초기화
     gskemInput.value = ''; nameInput.value = ''; buInput.value = '';
     if (!yuhanPartNo) return;
-    showMessage('품번 정보 조회 중...', 'info');
+
+    showMessage('품번 정보 조회 중...', 'info', '#creationMessageArea');
     google.script.run
       .withSuccessHandler(res => {
-        if (res && res.error) { showMessage(`조회 오류: ${res.error}`, 'error'); return; }
+        if (res && res.error) {
+          showMessage(`조회 오류: ${res.error}`, 'error', '#creationMessageArea');
+          return;
+        }
         if (res) {
-            gskemInput.value = res.지에스켐품번 || ''; nameInput.value = res.품명 || ''; buInput.value = res.사업부 || '';
-            showMessage('품번 정보가 조회되었습니다.', 'success');
+            gskemInput.value = res.지에스켐품번 || ''; 
+            nameInput.value = res.품명 || ''; 
+            buInput.value = res.사업부 || '';
+            showMessage('품번 정보가 조회되었습니다.', 'success', '#creationMessageArea');
         } else {
-            nameInput.value = '일치하는 품번 없음'; showMessage('일치하는 품번 정보가 없습니다.', 'error');
+            nameInput.value = '일치하는 품번 없음'; 
+            showMessage('일치하는 품번 정보가 없습니다.', 'error', '#creationMessageArea');
         }
       })
-      .withFailureHandler(err => showMessage(`조회 오류: ${err.message}`, 'error'))
+      .withFailureHandler(err => showMessage(`조회 오류: ${err.message}`, 'error', '#creationMessageArea'))
       .getYuhanProductInfo(yuhanPartNo);
   }
 
@@ -229,28 +231,36 @@
     const spinner = document.getElementById('submitSpinner');
     spinner.style.display = 'inline-block';
     const orders = Array.from(document.querySelectorAll('#orderItemsContainer .order-item-card')).map(card => ({
-      issueDate: card.querySelector('[name="issueDate"]').value, yuhanPartNo: card.querySelector('[name="yuhanPartNo"]').value.trim(),
-      itemName: card.querySelector('[name="itemName"]').value.trim(), quantity: card.querySelector('[name="quantity"]').value,
-      deliveryDate: card.querySelector('[name="deliveryDate"]').value, businessUnit: card.querySelector('[name="businessUnit"]').value.trim(),
+      issueDate: card.querySelector('[name="issueDate"]').value, 
+      yuhanPartNo: card.querySelector('[name="yuhanPartNo"]').value.trim(),
+      itemName: card.querySelector('[name="itemName"]').value.trim(), 
+      quantity: card.querySelector('[name="quantity"]').value,
+      deliveryDate: card.querySelector('[name="deliveryDate"]').value, 
+      businessUnit: card.querySelector('[name="businessUnit"]').value.trim(),
       gskemPartNo: card.querySelector('[name="gskemPartNo"]').value.trim()
     })).filter(o => o.yuhanPartNo && o.itemName && o.itemName !== '일치하는 품번 없음' && o.quantity > 0 && o.deliveryDate);
+    
     if (orders.length === 0) {
-      showMessage('제출할 유효한 품목이 없습니다. 필수 항목(*)을 확인해주세요.', 'error');
+      showMessage('제출할 유효한 품목이 없습니다. 필수 항목(*)을 확인해주세요.', 'error', '#creationMessageArea');
       spinner.style.display = 'none';
       return;
     }
-    showMessage('발주서 등록 중...', 'info');
+
+    showMessage('발주서 등록 중...', 'info', '#creationMessageArea');
     google.script.run
       .withSuccessHandler(res => {
         spinner.style.display = 'none';
-        showMessage(res.message, res.success ? 'success' : 'error');
+        showMessage(res.message, res.success ? 'success' : 'error', '#creationMessageArea');
         if (res.success) {
             document.getElementById('orderItemsContainer').innerHTML = '';
             addOrderItem();
-            fetchOrderStatusData();
+            fetchOrderStatusData(); // 성공 시 현황 다시 로드
         }
       })
-      .withFailureHandler(err => { spinner.style.display = 'none'; showMessage(`서버 오류: ${err.message}`, 'error'); })
+      .withFailureHandler(err => { 
+        spinner.style.display = 'none'; 
+        showMessage(`서버 오류: ${err.message}`, 'error', '#creationMessageArea'); 
+      })
       .submitOrderToSheet(orders);
   }
 
@@ -265,7 +275,10 @@
     google.script.run
       .withSuccessHandler(data => {
         spinner.style.display = 'none';
-        if (data.error) { showMessage('데이터 조회 오류: ' + data.error, 'error', '#statusMessageArea'); return; }
+        if (data.error) { 
+          showMessage('데이터 조회 오류: ' + data.error, 'error', '#statusMessageArea'); 
+          return; 
+        }
         dashboardDataStore = data.results;
         if (!areFiltersPopulated) {
           populateFilters(data.categories, data.businessUnits);
@@ -273,7 +286,10 @@
         }
         renderOrderStatusTable(dashboardDataStore);
       })
-      .withFailureHandler(err => { spinner.style.display = 'none'; showMessage('서버 통신 오류: ' + err.message, 'error', '#statusMessageArea'); })
+      .withFailureHandler(err => { 
+        spinner.style.display = 'none'; 
+        showMessage('서버 통신 오류: ' + err.message, 'error', '#statusMessageArea'); 
+      })
       .getOrderStatusDashboardData(filters);
   }
 
