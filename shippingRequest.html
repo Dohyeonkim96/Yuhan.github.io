@@ -62,8 +62,6 @@
 
   (function initializePage() {
     addRequestItemRow();
-    const thisScript = document.currentScript;
-    new MutationObserver((m, o) => !document.contains(thisScript) && o.disconnect()).observe(document.body, { childList: true, subtree: true });
   })();
   
   function addRequestItemRow() {
@@ -74,11 +72,11 @@
     newCard.className = "item-card";
     newCard.id = `item-card-${rowId}`;
 
-    const deleteButtonHtml = rowId > 1 ? `<button class="button-danger" onclick="removeRequestItemRow(this)">삭제</button>`: '';
+    const deleteButtonHtml = requestState.itemCounter > 1 ? `<button class="button-danger" onclick="removeRequestItemRow(this)">삭제</button>`: '';
 
     newCard.innerHTML = `
       <div class="item-card-header">
-        <h3>출고 품목 ${rowId}</h3>
+        <h3>출고 품목 ${requestState.itemCounter}</h3>
         ${deleteButtonHtml}
       </div>
       <div class="item-grid">
@@ -116,6 +114,7 @@
         const itemNumber = index + 1;
         card.querySelector('h3').textContent = `출고 품목 ${itemNumber}`;
     });
+    // 실제 카드 수에 맞게 카운터 업데이트
     requestState.itemCounter = allItemCards.length;
   }
 
@@ -127,8 +126,8 @@
     const lotIndex = lotSelect.value;
     const quantityInput = row.querySelector(`[name="quantity"]`);
     
-    const fieldsToReset = ['mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'];
-    fieldsToReset.forEach(name => {
+    // 필드 리셋
+    ['mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'].forEach(name => {
         const input = row.querySelector(`[name="${name}"]`);
         if(input) input.value = "";
     });
@@ -144,7 +143,7 @@
     
     quantityInput.disabled = false;
     quantityInput.max = selectedLot.quantity;
-    quantityInput.placeholder = `최대 ${selectedLot.quantity}개`;
+    quantityInput.placeholder = `최대 ${formatNumberWithCommas(selectedLot.quantity)}개`;
     quantityInput.focus();
   }
 
@@ -156,9 +155,10 @@
     const quantity = parseInt(row.querySelector(`[name="quantity"]`).value) || 0;
     const packSize = rowData.staticInfo.packSize;
     const itemsPerPallet = rowData.staticInfo.itemsPerPallet;
+    const validationMsgEl = row.querySelector(`[name="validation-msg"]`);
 
     row.querySelector(`[name="boxQty"]`).value = (packSize > 0) ? (quantity / packSize).toFixed(2) : 'N/A';
-    row.querySelector(`[name="validation-msg"]`).textContent = (packSize > 0 && quantity % packSize !== 0) ? "BOX 단위 아님" : "";
+    validationMsgEl.textContent = (packSize > 0 && quantity > 0 && quantity % packSize !== 0) ? "BOX 단위로 입력해주세요." : "";
     row.querySelector(`[name="palletQty"]`).value = (itemsPerPallet > 0) ? (quantity / itemsPerPallet).toFixed(1) : 'N/A';
   }
 
@@ -169,6 +169,7 @@
     const itemCode = row.querySelector(`[name="itemCode"]`).value.trim();
     const lotSelect = row.querySelector(`[name="lot"]`);
 
+    // 해당 행의 데이터 초기화
     delete requestState.rowDataStore[rowId];
     ['itemName', 'packSize', 'mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'].forEach(name => {
         const input = row.querySelector(`[name="${name}"]`);
@@ -182,8 +183,15 @@
     showMessage("품목 정보 조회 중...", "info");
     google.script.run
       .withSuccessHandler(data => {
-        if (data.error) { showMessage(`오류: ${data.error}`, "error"); return; }
-        if (!data || !data.lots || data.lots.length === 0) { showMessage(`오류: 품번 '${itemCode}'에 대한 재고가 없습니다.`, "error"); return; }
+        if (data.error) { 
+          showMessage(`오류: ${data.error}`, "error"); 
+          return; 
+        }
+        if (!data || !data.lots || data.lots.length === 0) { 
+          showMessage(`오류: 품번 '${itemCode}'에 대한 재고가 없습니다.`, "error"); 
+          row.querySelector('[name="itemName"]').value = '재고 없음';
+          return; 
+        }
         
         requestState.rowDataStore[rowId] = data;
         row.querySelector(`[name="itemName"]`).value = data.staticInfo.itemName;
@@ -191,7 +199,7 @@
         
         lotSelect.innerHTML = '<option value="">LOT를 선택하세요</option>';
         data.lots.forEach((lot, index) => {
-          lotSelect.add(new Option(`${lot.lotNumber} (재고: ${lot.quantity})`, index));
+          lotSelect.add(new Option(`${lot.lotNumber} (재고: ${formatNumberWithCommas(lot.quantity)})`, index));
         });
         lotSelect.disabled = false;
         showMessage("품목 정보 조회 완료. LOT를 선택하세요.", "success");
@@ -213,12 +221,21 @@
       const rowId = parseInt(row.id.split('-')[2]);
       const data = requestState.rowDataStore[rowId];
       const lotIndex = row.querySelector(`[name="lot"]`).value;
+      const validationMessage = row.querySelector(`[name="validation-msg"]`).textContent;
 
-      if (!data || lotIndex === "") return;
+      if (!data || lotIndex === "") return; // 아직 입력이 완료되지 않은 행은 건너뜀
+
+      // 1. BOX 단위 검사
+      if (validationMessage) {
+        showMessage(`품목(${data.staticInfo.itemName})의 수량이 BOX 단위가 아닙니다.`, "error");
+        allValid = false;
+        return;
+      }
 
       const quantity = parseInt(row.querySelector(`[name="quantity"]`).value);
       const selectedLot = data.lots[lotIndex];
 
+      // 2. 수량 및 재고 검사
       if (isNaN(quantity) || quantity <= 0 || quantity > selectedLot.quantity) {
         showMessage(`품목(${data.staticInfo.itemName})의 수량이 잘못되었거나 재고를 초과합니다.`, "error");
         allValid = false;
@@ -226,16 +243,25 @@
       }
 
       requests.push({
-        shippingDate: row.querySelector(`[name="shippingDate"]`).value, itemCode: row.querySelector(`[name="itemCode"]`).value.trim(),
-        itemName: data.staticInfo.itemName, lotNumber: selectedLot.lotNumber, quantity: quantity,
-        boxQty: row.querySelector(`[name="boxQty"]`).value, palletQty: row.querySelector(`[name="palletQty"]`).value,
-        packSize: data.staticInfo.packSize, mfgDate: selectedLot.mfgDate, expDate: selectedLot.expDate
+        shippingDate: row.querySelector(`[name="shippingDate"]`).value, 
+        itemCode: row.querySelector(`[name="itemCode"]`).value.trim(),
+        itemName: data.staticInfo.itemName, 
+        lotNumber: selectedLot.lotNumber, 
+        quantity: quantity,
+        boxQty: row.querySelector(`[name="boxQty"]`).value, 
+        palletQty: row.querySelector(`[name="palletQty"]`).value,
+        packSize: data.staticInfo.packSize, 
+        mfgDate: selectedLot.mfgDate, 
+        expDate: selectedLot.expDate
       });
     });
 
-    if (!allValid) { spinner.style.display = 'none'; return; }
+    if (!allValid) { 
+      spinner.style.display = 'none'; 
+      return; 
+    }
     if (requests.length === 0) {
-      showMessage("출고할 품목을 1개 이상 입력해주세요.", "error");
+      showMessage("출고할 품목을 1개 이상 올바르게 입력해주세요.", "error");
       spinner.style.display = 'none';
       return;
     }
