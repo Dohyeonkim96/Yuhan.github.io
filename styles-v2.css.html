@@ -1,0 +1,227 @@
+<style>
+/* =================================================================
+ * 통합 관리 시스템 CSS v2 - styles-v2.css.html
+ * @description
+ * - CSS 변수를 사용한 디자인 시스템 정의
+ * - 전체 애플리케이션의 공통 컴포넌트 스타일링
+ * ================================================================= */
+
+/* -----------------------------------------
+ * :root - 디자인 시스템 변수 정의
+ * ----------------------------------------- */
+:root {
+  /* 기본 색상 */
+  --primary-color: #0d6efd;   /* 주요 색상 (GNB, 주요 버튼 등) */
+  --secondary-color: #6c757d; /* 보조 색상 (보조 버튼 등) */
+  --accent-color: #e9ecef;    /* 강조 색상 (활성 링크 배경 등) */
+  
+  /* 상태별 색상 */
+  --success-color: #198754;
+  --info-color: #0dcaf0;
+  --warning-color: #ffc107;
+  --danger-color: #dc3545;
+
+  /* 텍스트 색상 */
+  --text-color-primary: #212529;
+  --text-color-secondary: #495057;
+  --label-color: #6c757d;
+
+  /* 배경 색상 */
+  --page-bg: #f8f9fa;
+  --card-bg: #ffffff;
+  --input-bg-editable: #fff;
+  --input-bg-readonly: #e9ecef;
+  
+  /* 테두리 */
+  --border-color: #dee2e6;
+  --border-radius-sm: 0.25rem;
+  --border-radius-md: 0.375rem;
+
+  /* 간격 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* 글꼴 */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-size-base: 1rem;
+  --font-size-sm: 0.875rem;
+  --font-size-label: 0.85rem;
+  --font-size-input: 1rem;
+  --font-size-title-main: 1.5rem;
+  --font-size-title-section: 1.25rem;
+
+  /* 그림자 */
+  --box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+}
+
+/* -----------------------------------------
+ * 글로벌 스타일 & 리셋
+ * ----------------------------------------- */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  color: var(--text-color-primary);
+  background-color: var(--page-bg);
+}
+
+/* -----------------------------------------
+ * 공통 레이아웃
+ * ----------------------------------------- */
+.section-card {
+  background-color: var(--card-bg);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--box-shadow);
+  border: 1px solid var(--border-color);
+}
+
+.page-main-title {
+  font-size: var(--font-size-title-main);
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--primary-color);
+}
+
+.section-title {
+  font-size: var(--font-size-title-section);
+  margin: 0 0 var(--spacing-md) 0;
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--primary-color);
+}
+
+/* -----------------------------------------
+ * 공통 컴포넌트
+ * ----------------------------------------- */
+
+/* 버튼 */
+.button, button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.button-primary {
+  color: #fff;
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+.button-primary:hover { background-color: #0b5ed7; }
+
+.button-secondary {
+  color: #fff;
+  background-color: var(--secondary-color);
+  border-color: var(--secondary-color);
+}
+.button-secondary:hover { background-color: #5c636a; }
+
+.button-danger {
+  color: #fff;
+  background-color: var(--danger-color);
+  border-color: var(--danger-color);
+}
+.button-danger:hover { background-color: #bb2d3b; }
+
+/* 폼 요소 */
+.form-group {
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  color: var(--label-color);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-input);
+  line-height: 1.5;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  height: calc(var(--font-size-input) + 22px);
+}
+
+input.editable, select.editable {
+    background-color: var(--input-bg-editable);
+}
+
+input:read-only, input[readonly] {
+  background-color: var(--input-bg-readonly);
+  cursor: not-allowed;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* 메시지 영역 */
+.message {
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid transparent;
+  display: none; /* 기본적으로 숨김 */
+}
+.message.success {
+  color: #0f5132;
+  background-color: #d1e7dd;
+  border-color: #badbcc;
+  display: block;
+}
+.message.error {
+  color: #842029;
+  background-color: #f8d7da;
+  border-color: #f5c2c7;
+  display: block;
+}
+.message.info {
+  color: #055160;
+  background-color: #cff4fc;
+  border-color: #b6effb;
+  display: block;
+}
+
+/* 로딩 스피너 */
+.loading-spinner {
+  display: none;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner-border .75s linear infinite;
+  vertical-align: text-bottom;
+  margin-left: var(--spacing-sm);
+}
+
+@keyframes spinner-border {
+  to { transform: rotate(360deg); }
+}
+
+</style>
