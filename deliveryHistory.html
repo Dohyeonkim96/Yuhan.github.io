@@ -1,0 +1,178 @@
+<style>
+  .filter-controls {
+    display: flex; flex-wrap: wrap; gap: var(--spacing-md);
+    align-items: flex-end; margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md); background-color: #fdfdfe;
+    border: 1px solid var(--border-color); border-radius: var(--border-radius-md);
+  }
+  .data-table {
+    width: 100%; border-collapse: collapse; font-size: var(--font-size-sm);
+  }
+  .data-table th, .data-table td {
+    border: 1px solid var(--border-color); padding: var(--spacing-sm);
+    text-align: center; white-space: nowrap; vertical-align: middle;
+  }
+  .data-table thead th { background-color: #f8f9fa; font-weight: bold; }
+  .data-table tfoot { background-color: #f1f3f4; font-weight: bold; }
+  .data-table .clickable-quantity { color: var(--primary-color); text-decoration: underline; cursor: pointer; font-weight: bold; }
+  
+  .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
+  .modal-content { background-color: var(--card-bg); margin: 10% auto; padding: var(--spacing-lg); border-radius: var(--border-radius-md); width: 90%; max-width: 800px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: var(--spacing-md); margin-bottom: var(--spacing-md); }
+  .modal-header h2 { margin: 0; font-size: 1.2em; color: var(--primary-color); }
+  .close-button { color: var(--text-color-secondary); font-size: 28px; font-weight: bold; cursor: pointer; }
+</style>
+
+<div class="section-card">
+  <h1 class="page-main-title">납품 이력 조회</h1>
+  <div id="messageArea" class="message"></div>
+  
+  <div class="filter-controls">
+    <div class="form-group" style="margin-bottom:0;"><label for="year-filter">년도</label><select id="year-filter"></select></div>
+    <div class="form-group" style="margin-bottom:0;"><label for="month-filter">월</label><select id="month-filter"><option value="">전체 월</option></select></div>
+    <div class="form-group" style="margin-bottom:0;"><label for="item-code-filter">품목코드</label><input type="text" id="item-code-filter" class="editable" placeholder="품목코드로 검색"></div>
+    <button onclick="searchHistory()" class="button-primary">조회 <span id="loading" class="loading-spinner"></span></button>
+  </div>
+  
+  <div style="overflow-x: auto;">
+    <table class="data-table">
+      <thead><tr><th>품목코드</th><th style="min-width: 200px; text-align:left;">품명</th><th>총 납품수량</th></tr></thead>
+      <tbody id="history-tbody"></tbody>
+      <tfoot id="history-tfoot"></tfoot>
+    </table>
+  </div>
+</div>
+
+<div id="lot-detail-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-title">상세 내역</h2>
+      <span class="close-button" onclick="closeModal()">&times;</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="data-table">
+        <thead><tr><th>납품일자</th><th>LOT</th><th>납품수량</th><th>제조일자</th><th>유효일자</th></tr></thead>
+        <tbody id="lot-detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let fullHistoryData = [];
+
+  (function initializePage() {
+    const monthSelect = document.getElementById('month-filter');
+    for (let i = 1; i <= 12; i++) monthSelect.add(new Option(i + '월', i));
+    
+    // 페이지 로드 시, 올해와 이번 달을 기본값으로 설정하고 연도 목록 조회
+    google.script.run
+      .withSuccessHandler(years => {
+        const yearSelect = document.getElementById('year-filter');
+        if (years && years.length > 0) {
+          const currentYear = new Date().getFullYear();
+          years.forEach(year => yearSelect.add(new Option(year + '년', year)));
+          yearSelect.value = years.includes(currentYear) ? currentYear : years[0];
+        }
+        monthSelect.value = new Date().getMonth() + 1;
+        searchHistory(); // 초기 데이터 조회
+      })
+      .withFailureHandler(err => showMessage('년도 목록 조회 오류: ' + err.message, 'error'))
+      .getAvailableHistoryYears();
+
+    window.addEventListener('click', e => { 
+        if (e.target.id === 'lot-detail-modal') closeModal(); 
+    });
+
+    const thisScript = document.currentScript;
+    new MutationObserver((m,o) => !document.contains(thisScript) && o.disconnect()).observe(document.body, {childList:true, subtree:true});
+  })();
+
+  function searchHistory() {
+    document.getElementById('loading').style.display = 'inline-block';
+    showMessage('데이터를 조회하고 있습니다...', 'info');
+    
+    const filters = {
+      year: document.getElementById('year-filter').value,
+      month: document.getElementById('month-filter').value,
+      itemCode: document.getElementById('item-code-filter').value.trim()
+    };
+    
+    google.script.run
+      .withSuccessHandler(data => {
+        if (data && data.error) {
+            showMessage('데이터 조회 오류: ' + data.error, 'error');
+            fullHistoryData = [];
+        } else {
+            fullHistoryData = data || [];
+        }
+        renderHistoryTable(fullHistoryData);
+        document.getElementById('loading').style.display = 'none';
+      })
+      .withFailureHandler(err => {
+        document.getElementById('loading').style.display = 'none';
+        showMessage('데이터 조회 오류: ' + err.message, 'error');
+        renderHistoryTable([]); // 오류 발생 시 테이블 초기화
+      })
+      .getDeliveryHistory(filters);
+  }
+  
+  function renderHistoryTable(data) {
+      const tbody = document.getElementById('history-tbody');
+      const tfoot = document.getElementById('history-tfoot');
+      tbody.innerHTML = ''; 
+      tfoot.innerHTML = '';
+      
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3">조회된 데이터가 없습니다.</td></tr>';
+        showMessage('해당 조건의 데이터가 없습니다.', 'info');
+        return;
+      }
+      
+      const grandTotal = data.reduce((sum, item) => sum + item.grandTotalQuantity, 0);
+      
+      data.forEach(item => {
+        tbody.insertRow().innerHTML = `
+          <td>${item.itemCode}</td>
+          <td style="text-align:left;">${item.itemName}</td>
+          <td class="number">
+            <span class="clickable-quantity" onclick="showLotDetails('${item.itemCode}')">
+              ${formatNumberWithCommas(item.grandTotalQuantity)}
+            </span>
+          </td>`;
+      });
+      
+      tfoot.insertRow().innerHTML = `
+          <td colspan="2" style="text-align: center;">총 합계</td>
+          <td class="number">${formatNumberWithCommas(grandTotal)}</td>`;
+          
+      showMessage(`${data.length}개 품목의 이력이 조회되었습니다.`, 'success');
+  }
+
+  function showLotDetails(itemCode) {
+    const itemData = fullHistoryData.find(item => item.itemCode === itemCode);
+    if (!itemData) return;
+    
+    const modal = document.getElementById('lot-detail-modal');
+    document.getElementById('modal-title').textContent = `[${itemData.itemName}] 상세 납품 내역`;
+    const lotTbody = document.getElementById('lot-detail-tbody');
+    lotTbody.innerHTML = '';
+    
+    // 상세 내역을 납품일자 최신순으로 정렬
+    const sortedTransactions = itemData.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    sortedTransactions.forEach(tx => {
+      lotTbody.insertRow().innerHTML = `
+        <td>${tx.date || '-'}</td>
+        <td>${tx.lot || '-'}</td>
+        <td class="number">${formatNumberWithCommas(tx.quantity)}</td>
+        <td>${tx.mfgDate || '-'}</td>
+        <td>${tx.expDate || '-'}</td>`;
+    });
+    modal.style.display = 'block';
+  }
+
+  function closeModal() {
+    document.getElementById('lot-detail-modal').style.display = 'none';
+  }
+</script>
