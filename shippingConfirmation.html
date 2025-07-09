@@ -1,44 +1,18 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <base target="_top">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    /* [수정] 이 페이지에 필요한 모든 스타일을 여기에 포함 */
-    :root {
-      --primary-color: #0d6efd; --secondary-color: #6c757d; --danger-color: #dc3545;
-      --border-color: #dee2e6; --card-bg: #ffffff; --page-bg: #f8f9fa;
-      --text-color-primary: #212529; --text-color-secondary: #495057; --label-color: #6c757d;
-      --spacing-sm: 8px; --spacing-md: 16px; --spacing-lg: 24px;
-      --border-radius-md: 0.375rem; --font-size-sm: 0.875rem;
-    }
-    .section-card { background-color: var(--card-bg); padding: var(--spacing-lg); border-radius: var(--border-radius-md); border: 1px solid var(--border-color); }
-    .page-main-title { font-size: 1.5rem; margin: 0 0 var(--spacing-lg) 0; color: var(--primary-color); }
-    .message { padding: var(--spacing-md); margin-bottom: var(--spacing-md); border-radius: var(--border-radius-md); border: 1px solid transparent; display: none; }
-    .message.success { color: #0f5132; background-color: #d1e7dd; border-color: #badbcc; display: block; }
-    .message.error { color: #842029; background-color: #f8d7da; border-color: #f5c2c7; display: block; }
-    .message.info { color: #055160; background-color: #cff4fc; border-color: #b6effb; display: block; }
-    .loading-spinner { display: none; width: 1em; height: 1em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spinner-border .75s linear infinite; vertical-align: text-bottom; margin-left: var(--spacing-sm); }
-    @keyframes spinner-border { to { transform: rotate(360deg); } }
-
+<style>
+    /* 이 페이지에만 필요한 특정 스타일 */
     .request-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
     .request-table th, .request-table td { padding: var(--spacing-sm); border: 1px solid var(--border-color); text-align: center; vertical-align: middle; white-space: nowrap; }
     .request-table thead th { background-color: #f8f9fa; font-weight: bold; }
     .request-table tbody tr:hover { background-color: #f3f8fe; }
     .request-table .actions { display: flex; gap: var(--spacing-sm); justify-content: center; }
     .request-table .actions .button { font-size: 11px; padding: 5px 10px; line-height:1.2; }
-    .button, button { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; font-size: 1rem; font-weight: 500; border: 1px solid transparent; border-radius: var(--border-radius-md); cursor: pointer; transition: background-color 0.15s ease-in-out; line-height: 1.5; white-space: nowrap; }
-    .button-primary { color: #fff; background-color: var(--primary-color); border-color: var(--primary-color); }
-    .button-secondary { color: #fff; background-color: var(--secondary-color); border-color: var(--secondary-color); }
-    .button-danger { color: #fff; background-color: var(--danger-color); border-color: var(--danger-color); }
-    .form-group { margin-bottom: var(--spacing-md); display: flex; flex-direction: column; }
-    input.editable, select.editable { background-color: var(--input-bg-editable); }
-
+    
     .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
     .modal-content { background-color: var(--card-bg); margin: 15% auto; padding: var(--spacing-lg); border-radius: var(--border-radius-md); width: 90%; max-width: 500px; }
     .modal-content h3 { margin-top: 0; color: var(--primary-color); }
     .modal-footer { margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm); }
     
+    /* 모바일 반응형 스타일 */
     @media (max-width: 1200px) {
       .request-table thead { display: none; }
       .request-table, .request-table tbody, .request-table tr, .request-table td { display: block; width: 100%; }
@@ -49,10 +23,9 @@
       .request-table td.actions { display: flex; justify-content: center; padding-top: var(--spacing-md); }
       .request-table .actions .button { flex-grow: 1; }
     }
-  </style>
-</head>
-<body>
-  <div class="section-card">
+</style>
+
+<div class="section-card">
     <h1 class="page-main-title">출고 요청 확인 및 처리</h1>
     <div id="messageArea" class="message"></div>
     <div style="overflow-x: auto;">
@@ -68,9 +41,9 @@
     <div style="text-align: right; margin-top: 1rem;">
       <button class="button-secondary" onclick="loadPendingShipments()">새로고침 <span id="loading" class="loading-spinner"></span></button>
     </div>
-  </div>
+</div>
 
-  <div id="edit-modal" class="modal">
+<div id="edit-modal" class="modal">
     <div class="modal-content">
       <h3>출고 요청 수정</h3>
       <input type="hidden" id="edit-row-id">
@@ -89,30 +62,15 @@
         <button class="button-primary" onclick="saveChanges()">저장</button>
       </div>
     </div>
-  </div>
+</div>
 
-  <script>
-    // [수정] 공통 함수를 이 파일에 직접 포함
-    function showMessage(text, type, timeout = 4000) {
-      const messageArea = document.getElementById('messageArea');
-      if (!messageArea) { console.error("Message area not found."); return; }
-      messageArea.textContent = text;
-      messageArea.className = 'message ' + type;
-      messageArea.style.display = 'block';
-      if (messageArea.timerId) clearTimeout(messageArea.timerId);
-      messageArea.timerId = setTimeout(() => {
-        messageArea.textContent = '';
-        messageArea.style.display = 'none';
-      }, timeout);
-    }
-    function formatNumberWithCommas(number) {
-      const num = Number(String(number).replace(/,/g, ''));
-      if (number === null || number === undefined || String(number).trim() === "" || isNaN(num)) return "";
-      return num.toLocaleString('ko-KR');
-    }
-
-    // 페이지 로직
-    document.addEventListener("DOMContentLoaded", loadPendingShipments);
+<script>
+    (function initializePage() {
+      loadPendingShipments();
+      window.addEventListener('click', e => { 
+        if (e.target.id === 'edit-modal') closeModal(); 
+      });
+    })();
 
     function closeModal() {
       document.getElementById('edit-modal').style.display = 'none';
@@ -230,6 +188,4 @@
           loadPendingShipments();
       }
     }
-  </script>
-</body>
-</html>
+</script>
