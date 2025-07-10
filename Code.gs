@@ -555,7 +555,14 @@ function getDeliveryHistory(filters) {
       if (filters.itemCode && !rowCode.includes(filters.itemCode)) return false;
       return true;
     });
+
     const aggregationMap = {};
+    // [수정 시작] 날짜 포맷팅을 위한 헬퍼 함수 정의
+    const formatDate = (dateValue) => {
+        const dateObj = parseDateString(dateValue);
+        return dateObj ? Utilities.formatDate(dateObj, Session.getScriptTimeZone(), "yyyy-MM-dd") : '';
+    };
+
     filteredData.forEach(row => {
       const itemCode = String(row['품목코드']);
       if (!aggregationMap[itemCode]) {
@@ -566,14 +573,19 @@ function getDeliveryHistory(filters) {
       const quantity = Number(row['수량']) || 0;
       aggregationMap[itemCode].grandTotalQuantity += quantity;
       aggregationMap[itemCode].transactions.push({
-        date: row['납품일자'] instanceof Date ? Utilities.formatDate(row['납품일자'], Session.getScriptTimeZone(), "yyyy-MM-dd") : '',
-        lot: String(row['LOT']), quantity: quantity,
-        mfgDate: row['제조일자'] instanceof Date ? Utilities.formatDate(row['제조일자'], Session.getScriptTimeZone(), "yyyy-MM-dd") : '',
-        expDate: row['유효일자'] instanceof Date ? Utilities.formatDate(row['유효일자'], Session.getScriptTimeZone(), "yyyy-MM-dd") : ''
+        // [수정] instanceof Date 대신 헬퍼 함수를 사용하여 날짜 변환
+        date: formatDate(row['납품일자']),
+        lot: String(row['LOT']),
+        quantity: quantity,
+        mfgDate: formatDate(row['제조일자']),
+        expDate: formatDate(row['유효일자'])
       });
     });
     return Object.values(aggregationMap);
-  } catch (e) { Logger.log(`getDeliveryHistory Error: ${e.stack}`); return []; }
+  } catch (e) { 
+    Logger.log(`getDeliveryHistory Error: ${e.stack}`); 
+    return []; // [수정] 에러 발생 시 빈 배열을 반환하도록 통일
+  }
 }
 
 function parseDateString(dateString) {
