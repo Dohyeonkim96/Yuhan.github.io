@@ -94,17 +94,7 @@
             return; 
         }
         
-        if (data.results && Array.isArray(data.results)) {
-            data.results.forEach(item => {
-                if (item.transactions && Array.isArray(item.transactions)) {
-                    item.totalOrdered = item.transactions.reduce((sum, tx) => sum + (tx.qty || 0), 0);
-                } else {
-                    item.totalOrdered = 0;
-                }
-                item.cumulativeDelivered = item.totalOrdered - (item.balance || 0);
-            });
-        }
-        
+        // [수정] 서버에서 모든 계산을 처리하므로 클라이언트 측 계산 로직 제거
         poStatusDataStore = data.results || [];
         
         if (!areFiltersPopulated) {
@@ -117,7 +107,8 @@
         spinner.style.display = 'none';
         showMessage('서버 통신 오류: ' + err.message, 'error');
       })
-      .getOrderStatusDashboardData(filters);
+      // [수정] PO 잔량 상세 조회를 위한 올바른 함수 호출
+      .getPoStatusDetails(filters);
   }
 
   function populateFilters(categories, businessUnits) {
