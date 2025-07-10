@@ -114,7 +114,6 @@
         const itemNumber = index + 1;
         card.querySelector('h3').textContent = `출고 품목 ${itemNumber}`;
     });
-    // 실제 카드 수에 맞게 카운터 업데이트
     requestState.itemCounter = allItemCards.length;
   }
 
@@ -126,7 +125,6 @@
     const lotIndex = lotSelect.value;
     const quantityInput = row.querySelector(`[name="quantity"]`);
     
-    // 필드 리셋
     ['mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'].forEach(name => {
         const input = row.querySelector(`[name="${name}"]`);
         if(input) input.value = "";
@@ -157,13 +155,9 @@
     const itemsPerPallet = Number(rowData.staticInfo.itemsPerPallet) || 0;
     const validationMsgEl = row.querySelector(`[name="validation-msg"]`);
 
-    // [수정] BOX 수량 계산 로직: .toFixed(2) 제거하여 정수로 표시되도록 하고, 0일 경우 빈 값 처리
     row.querySelector(`[name="boxQty"]`).value = (packSize > 0 && quantity > 0) ? (quantity / packSize) : "";
-    
-    // [수정] 파렛트 수량 계산 로직: 0일 경우 빈 값 처리
     row.querySelector(`[name="palletQty"]`).value = (itemsPerPallet > 0 && quantity > 0) ? (quantity / itemsPerPallet).toFixed(1) : "";
 
-    // 유효성 검사 메시지 로직은 그대로 유지
     validationMsgEl.textContent = (packSize > 0 && quantity > 0 && quantity % packSize !== 0) ? "BOX 단위로 입력해주세요." : "";
   }
 
@@ -174,7 +168,6 @@
     const itemCode = row.querySelector(`[name="itemCode"]`).value.trim();
     const lotSelect = row.querySelector(`[name="lot"]`);
 
-    // 해당 행의 데이터 초기화
     delete requestState.rowDataStore[rowId];
     ['itemName', 'packSize', 'mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'].forEach(name => {
         const input = row.querySelector(`[name="${name}"]`);
@@ -228,9 +221,8 @@
       const lotIndex = row.querySelector(`[name="lot"]`).value;
       const validationMessage = row.querySelector(`[name="validation-msg"]`).textContent;
 
-      if (!data || lotIndex === "") return; // 아직 입력이 완료되지 않은 행은 건너뜀
+      if (!data || lotIndex === "") return;
 
-      // 1. BOX 단위 검사
       if (validationMessage) {
         showMessage(`품목(${data.staticInfo.itemName})의 수량이 BOX 단위가 아닙니다.`, "error");
         allValid = false;
@@ -240,7 +232,6 @@
       const quantity = parseInt(row.querySelector(`[name="quantity"]`).value);
       const selectedLot = data.lots[lotIndex];
 
-      // 2. 수량 및 재고 검사
       if (isNaN(quantity) || quantity <= 0 || quantity > selectedLot.quantity) {
         showMessage(`품목(${data.staticInfo.itemName})의 수량이 잘못되었거나 재고를 초과합니다.`, "error");
         allValid = false;
