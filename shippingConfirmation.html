@@ -1,0 +1,191 @@
+<style>
+    /* 이 페이지에만 필요한 특정 스타일 */
+    .request-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+    .request-table th, .request-table td { padding: var(--spacing-sm); border: 1px solid var(--border-color); text-align: center; vertical-align: middle; white-space: nowrap; }
+    .request-table thead th { background-color: #f8f9fa; font-weight: bold; }
+    .request-table tbody tr:hover { background-color: #f3f8fe; }
+    .request-table .actions { display: flex; gap: var(--spacing-sm); justify-content: center; }
+    .request-table .actions .button { font-size: 11px; padding: 5px 10px; line-height:1.2; }
+    
+    .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
+    .modal-content { background-color: var(--card-bg); margin: 15% auto; padding: var(--spacing-lg); border-radius: var(--border-radius-md); width: 90%; max-width: 500px; }
+    .modal-content h3 { margin-top: 0; color: var(--primary-color); }
+    .modal-footer { margin-top: var(--spacing-lg); display: flex; justify-content: flex-end; gap: var(--spacing-sm); }
+    
+    /* 모바일 반응형 스타일 */
+    @media (max-width: 1200px) {
+      .request-table thead { display: none; }
+      .request-table, .request-table tbody, .request-table tr, .request-table td { display: block; width: 100%; }
+      .request-table tr { border: 1px solid var(--primary-color); margin-bottom: var(--spacing-lg); padding: var(--spacing-sm); border-radius: var(--border-radius-md); }
+      .request-table td { display: flex; justify-content: space-between; text-align: right; border: none; border-bottom: 1px dashed var(--border-color); padding: var(--spacing-sm) 0; align-items: center; }
+      .request-table td:last-child { border-bottom: none; }
+      .request-table td::before { content: attr(data-label); font-weight: bold; text-align: left; padding-right: var(--spacing-md); color: var(--label-color); flex-basis: 50%;}
+      .request-table td.actions { display: flex; justify-content: center; padding-top: var(--spacing-md); }
+      .request-table .actions .button { flex-grow: 1; }
+    }
+</style>
+
+<div class="section-card">
+    <h1 class="page-main-title">출고 요청 확인 및 처리</h1>
+    <div id="messageArea" class="message"></div>
+    <div style="overflow-x: auto;">
+      <table class="request-table">
+        <thead>
+          <tr>
+            <th>요청일</th><th>품목코드</th><th>품명</th><th>입수</th><th>BOX수량</th><th>수량</th><th>LOT</th><th>제조일자</th><th>유통기한</th><th>파렛트수량</th><th>처리</th>
+          </tr>
+        </thead>
+        <tbody id="request-list-tbody"></tbody>
+      </table>
+    </div>
+    <div style="text-align: right; margin-top: 1rem;">
+      <button class="button-secondary" onclick="loadPendingShipments()">새로고침 <span id="loading" class="loading-spinner"></span></button>
+    </div>
+</div>
+
+<div id="edit-modal" class="modal">
+    <div class="modal-content">
+      <h3>출고 요청 수정</h3>
+      <input type="hidden" id="edit-row-id">
+      <input type="hidden" id="edit-item-code">
+      <div class="form-group">
+        <label for="edit-date">요청일</label>
+        <input type="date" id="edit-date" class="editable">
+      </div>
+      <div class="form-group">
+        <label for="edit-quantity">수량</label>
+        <input type="number" id="edit-quantity" min="1" class="editable">
+        <small id="edit-validation-msg" style="color:red; height: 1em; display: block; margin-top: var(--spacing-xs);"></small>
+      </div>
+      <div class="modal-footer">
+        <button class="button-secondary" onclick="closeModal()">취소</button>
+        <button class="button-primary" onclick="saveChanges()">저장</button>
+      </div>
+    </div>
+</div>
+
+<script>
+    (function initializePage() {
+      loadPendingShipments();
+      window.addEventListener('click', e => { 
+        if (e.target.id === 'edit-modal') closeModal(); 
+      });
+    })();
+
+    function closeModal() {
+      document.getElementById('edit-modal').style.display = 'none';
+    }
+
+    function loadPendingShipments() {
+      const loadingSpinner = document.getElementById("loading");
+      loadingSpinner.style.display = 'inline-block';
+      
+      google.script.run
+        .withSuccessHandler(requests => {
+          const tbody = document.getElementById("request-list-tbody");
+          tbody.innerHTML = "";
+          
+          if (requests.error) {
+              showMessage('요청 목록 조회 오류: ' + requests.error, "error");
+              tbody.innerHTML = `<tr><td colspan="11">데이터를 불러오는데 실패했습니다. 시트의 칼럼명을 확인해주세요.</td></tr>`;
+              return;
+          }
+
+          if (requests.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="11">확인 대기 중인 출고 요청이 없습니다.</td></tr>`;
+            showMessage('확인 대기 중인 요청이 없습니다.', 'info');
+          } else {
+            requests.forEach(req => {
+              tbody.insertRow().innerHTML = `
+                <td data-label="요청일">${req.shippingDate || ''}</td>
+                <td data-label="품목코드">${req.itemCode || ''}</td>
+                <td data-label="품명" style="text-align:left;">${req.itemName || ''}</td>
+                <td data-label="입수">${req.packSize || ''}</td>
+                <td data-label="BOX수량">${req.boxQty || ''}</td>
+                <td data-label="수량" style="font-weight:bold;">${formatNumberWithCommas(req.quantity)}</td>
+                <td data-label="LOT">${req.lotNumber || ''}</td>
+                <td data-label="제조일자">${req.mfgDate || ''}</td>
+                <td data-label="유통기한">${req.expDate || ''}</td>
+                <td data-label="파렛트수량">${req.palletQty || ''}</td>
+                <td class="actions" data-label="처리">
+                  <button class="button button-primary" onclick="handleConfirm(${req.rowId})">확인</button>
+                  <button class="button button-secondary" onclick='handleEdit(${req.rowId}, "${req.shippingDate}", ${req.quantity}, "${req.itemCode}")'>수정</button>
+                  <button class="button button-danger" onclick="handleDelete(${req.rowId})">삭제</button>
+                </td>
+              `;
+            });
+             showMessage(`${requests.length}건의 출고 요청이 있습니다.`, 'success');
+          }
+        })
+        .withFailureHandler(err => {
+          showMessage('서버 통신 오류: ' + err.message, "error");
+          document.getElementById("request-list-tbody").innerHTML = `<tr><td colspan="11">서버와 통신하는 중 오류가 발생했습니다.</td></tr>`;
+        })
+        .withFinalHandler(() => {
+          loadingSpinner.style.display = 'none';
+        })
+        .getPendingShipments();
+    }
+
+    function handleConfirm(rowId) {
+      if (!confirm(`[${rowId}행] 출고 요청을 최종 확인하고 재고를 차감하시겠습니까?`)) return;
+      showMessage("처리 중...", "info");
+      google.script.run
+        .withSuccessHandler(handleServerResponse)
+        .withFailureHandler(err => showMessage('출고 처리 오류: ' + err.message, "error"))
+        .confirmShipment(rowId);
+    }
+
+    function handleDelete(rowId) {
+      if (!confirm(`[${rowId}행] 출고 요청을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+      showMessage("삭제 중...", "info");
+      google.script.run
+        .withSuccessHandler(handleServerResponse)
+        .withFailureHandler(err => showMessage('삭제 처리 오류: ' + err.message, "error"))
+        .deleteShipmentRequest(rowId);
+    }
+
+    function handleEdit(rowId, date, quantity, itemCode) {
+      document.getElementById('edit-row-id').value = rowId;
+      document.getElementById('edit-item-code').value = itemCode;
+      document.getElementById('edit-date').value = date;
+      document.getElementById('edit-quantity').value = quantity;
+      document.getElementById('edit-validation-msg').textContent = "";
+      document.getElementById('edit-modal').style.display = 'block';
+    }
+
+    function saveChanges() {
+      const requestData = {
+          rowId: document.getElementById('edit-row-id').value,
+          itemCode: document.getElementById('edit-item-code').value,
+          newDate: document.getElementById('edit-date').value,
+          newQuantity: Number(document.getElementById('edit-quantity').value)
+      };
+      
+      if (requestData.newQuantity <= 0) {
+        document.getElementById('edit-validation-msg').textContent = "수량은 0보다 커야 합니다.";
+        return;
+      }
+      
+      showMessage("저장 중...", "info");
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            closeModal();
+            handleServerResponse(res);
+          } else {
+            document.getElementById('edit-validation-msg').textContent = res.message;
+            showMessage('수정 실패: ' + res.message, "error");
+          }
+        })
+        .withFailureHandler(err => showMessage('수정 처리 오류: ' + err.message, "error"))
+        .updateShipmentRequest(requestData);
+    }
+
+    function handleServerResponse(res) {
+      showMessage(res.message, res.success ? "success" : "error");
+      if (res.success) {
+          loadPendingShipments();
+      }
+    }
+</script>
