@@ -1,0 +1,292 @@
+<style>
+  /* 카드 기반 레이아웃 스타일 */
+  .item-card {
+    background-color: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+  }
+  .item-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+  }
+  .item-card-header h3 { margin: 0; color: var(--primary-color); }
+
+  .item-grid {
+    display: grid;
+    grid-template-columns: 1fr; /* 모바일에서는 1단 */
+    gap: var(--spacing-md);
+  }
+  .item-grid .form-group { margin-bottom: 0; }
+  .validation-message { font-size: 11px; color: var(--danger-color); height: 14px; margin-top:4px; }
+
+  /* 넓은 화면에서는 2단 그리드 적용 */
+  @media (min-width: 768px) {
+    .item-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md) var(--spacing-lg);
+    }
+  }
+
+  .action-buttons { 
+    margin-top: var(--spacing-lg); 
+    padding-top: var(--spacing-lg); 
+    border-top: 1px solid var(--border-color); 
+    display: flex; 
+    justify-content: space-between; 
+  }
+</style>
+
+<div class="section-card">
+  <h1 class="page-main-title">출고 요청</h1>
+  <div id="messageArea" class="message"></div>
+  
+  <div id="item-rows-container"></div>
+
+  <div class="action-buttons">
+    <button class="button-secondary" onclick="addRequestItemRow()">품목 추가</button>
+    <button class="button-primary" onclick="submitShipment()">출고 요청 등록<span id="submit-spinner" class="loading-spinner"></span></button>
+  </div>
+</div>
+
+<script>
+  const requestState = {
+    itemCounter: 0,
+    rowDataStore: {} 
+  };
+
+  (function initializePage() {
+    addRequestItemRow();
+  })();
+  
+  function addRequestItemRow() {
+    requestState.itemCounter++;
+    const rowId = requestState.itemCounter;
+    const container = document.getElementById("item-rows-container");
+    const newCard = document.createElement("div");
+    newCard.className = "item-card";
+    newCard.id = `item-card-${rowId}`;
+
+    newCard.innerHTML = `
+      <div class="item-card-header">
+        <h3></h3>
+      </div>
+      <div class="item-grid">
+        <div class="form-group"><label>요청일</label><input type="date" name="shippingDate" class="editable" value="${new Date().toISOString().slice(0, 10)}"></div>
+        <div class="form-group"><label>품목코드*</label><input type="text" name="itemCode" class="editable" onchange="fetchItemDetails(${rowId})" placeholder="유한품번 입력"></div>
+        <div class="form-group"><label>LOT번호*</label><select name="lot" class="editable" onchange="onLotChange(${rowId})" disabled><option value="">품목코드 먼저 입력</option></select></div>
+        <div class="form-group"><label>제품명</label><input type="text" name="itemName" readonly></div>
+        <div class="form-group">
+            <label>수량*</label>
+            <input type="number" name="quantity" class="editable" oninput="validateAndCalculate(${rowId})" min="1" disabled>
+            <div name="validation-msg" class="validation-message"></div>
+        </div>
+        <div class="form-group"><label>입수</label><input type="text" name="packSize" readonly></div>
+        <div class="form-group"><label>BOX수량</label><input type="text" name="boxQty" readonly></div>
+        <div class="form-group"><label>제조일자</label><input type="date" name="mfgDate" readonly></div>
+        <div class="form-group"><label>파렛트수량</label><input type="text" name="palletQty" readonly></div>
+        <div class="form-group"><label>유통기한</label><input type="date" name="expDate" readonly></div>
+      </div>
+    `;
+    container.appendChild(newCard);
+    renumberRequestItemCards();
+  }
+  
+  function removeRequestItemRow(button) {
+    const card = button.closest('.item-card');
+    const rowId = parseInt(card.id.split('-')[2]);
+    card.remove();
+    delete requestState.rowDataStore[rowId];
+    renumberRequestItemCards();
+  }
+
+  function renumberRequestItemCards() {
+    const allItemCards = document.querySelectorAll('#item-rows-container .item-card');
+    allItemCards.forEach((card, index) => {
+        const itemNumber = index + 1;
+        const header = card.querySelector('.item-card-header');
+        header.querySelector('h3').textContent = `출고 품목 ${itemNumber}`;
+        
+        let deleteBtn = header.querySelector('.button-danger');
+
+        if (itemNumber > 1 && !deleteBtn) {
+            const newBtn = document.createElement('button');
+            newBtn.className = 'button-danger';
+            newBtn.textContent = '삭제';
+            newBtn.onclick = () => removeRequestItemRow(newBtn);
+            header.appendChild(newBtn);
+        } else if (itemNumber === 1 && deleteBtn) {
+            deleteBtn.remove();
+        }
+    });
+  }
+
+  function onLotChange(rowId) {
+    const row = document.getElementById(`item-card-${rowId}`);
+    if (!row) return;
+
+    const lotSelect = row.querySelector(`[name="lot"]`);
+    const lotIndex = lotSelect.value;
+    const quantityInput = row.querySelector(`[name="quantity"]`);
+    
+    ['mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'].forEach(name => {
+        const input = row.querySelector(`[name="${name}"]`);
+        if(input) input.value = "";
+    });
+    row.querySelector(`[name="validation-msg"]`).textContent = "";
+    quantityInput.placeholder = "";
+    quantityInput.disabled = true;
+    
+    if (lotIndex === "" || !requestState.rowDataStore[rowId]) return;
+
+    const selectedLot = requestState.rowDataStore[rowId].lots[lotIndex];
+    row.querySelector(`[name="mfgDate"]`).value = selectedLot.mfgDate;
+    row.querySelector(`[name="expDate"]`).value = selectedLot.expDate;
+    
+    quantityInput.disabled = false;
+    quantityInput.max = selectedLot.quantity;
+    quantityInput.placeholder = `최대 ${formatNumberWithCommas(selectedLot.quantity)}개`;
+    quantityInput.focus();
+  }
+
+  function validateAndCalculate(rowId) {
+    const row = document.getElementById(`item-card-${rowId}`);
+    const rowData = requestState.rowDataStore[rowId];
+    if (!row || !rowData) return;
+
+    const quantity = parseInt(row.querySelector(`[name="quantity"]`).value) || 0;
+    const packSize = Number(rowData.staticInfo.packSize) || 0;
+    const itemsPerPallet = Number(rowData.staticInfo.itemsPerPallet) || 0;
+    const validationMsgEl = row.querySelector(`[name="validation-msg"]`);
+
+    row.querySelector(`[name="boxQty"]`).value = (packSize > 0 && quantity > 0) ? (quantity / packSize) : "";
+    row.querySelector(`[name="palletQty"]`).value = (itemsPerPallet > 0 && quantity > 0) ? (quantity / itemsPerPallet).toFixed(1) : "";
+
+    validationMsgEl.textContent = (packSize > 0 && quantity > 0 && quantity % packSize !== 0) ? "BOX 단위로 입력해주세요." : "";
+  }
+
+  function fetchItemDetails(rowId) {
+    const row = document.getElementById(`item-card-${rowId}`);
+    if (!row) return;
+    
+    const itemCode = row.querySelector(`[name="itemCode"]`).value.trim();
+    const lotSelect = row.querySelector(`[name="lot"]`);
+
+    delete requestState.rowDataStore[rowId];
+    ['itemName', 'packSize', 'mfgDate', 'expDate', 'quantity', 'boxQty', 'palletQty'].forEach(name => {
+        const input = row.querySelector(`[name="${name}"]`);
+        if(input) input.value = '';
+    });
+    lotSelect.innerHTML = '<option value="">품목코드 먼저 입력</option>';
+    lotSelect.disabled = true;
+
+    if (!itemCode) return;
+
+    showMessage("품목 정보 조회 중...", "info");
+    google.script.run
+      .withSuccessHandler(data => {
+        if (data.error) { 
+          showMessage(`오류: ${data.error}`, "error"); 
+          return; 
+        }
+        if (!data || !data.lots || data.lots.length === 0) { 
+          showMessage(`오류: 품번 '${itemCode}'에 대한 재고가 없습니다.`, "error"); 
+          row.querySelector('[name="itemName"]').value = '재고 없음';
+          return; 
+        }
+        
+        requestState.rowDataStore[rowId] = data;
+        row.querySelector(`[name="itemName"]`).value = data.staticInfo.itemName;
+        row.querySelector(`[name="packSize"]`).value = data.staticInfo.packSize;
+        
+        lotSelect.innerHTML = '<option value="">LOT를 선택하세요</option>';
+        data.lots.forEach((lot, index) => {
+          lotSelect.add(new Option(`${lot.lotNumber} (재고: ${formatNumberWithCommas(lot.quantity)})`, index));
+        });
+        lotSelect.disabled = false;
+        showMessage("품목 정보 조회 완료. LOT를 선택하세요.", "success");
+      })
+      .withFailureHandler(err => showMessage(`조회 실패: ${err.message}`, "error"))
+      .getInventoryDetailsByYuhanCode(itemCode);
+  }
+
+  function submitShipment() {
+    const spinner = document.getElementById("submit-spinner");
+    spinner.style.display = 'inline-block';
+    
+    let allValid = true;
+    const requests = [];
+    
+    document.querySelectorAll("#item-rows-container .item-card").forEach(row => {
+      if (!allValid) return;
+      
+      const rowId = parseInt(row.id.split('-')[2]);
+      const data = requestState.rowDataStore[rowId];
+      const lotIndex = row.querySelector(`[name="lot"]`).value;
+      const validationMessage = row.querySelector(`[name="validation-msg"]`).textContent;
+
+      if (!data || lotIndex === "") return;
+
+      if (validationMessage) {
+        showMessage(`품목(${data.staticInfo.itemName})의 수량이 BOX 단위가 아닙니다.`, "error");
+        allValid = false;
+        return;
+      }
+
+      const quantity = parseInt(row.querySelector(`[name="quantity"]`).value);
+      const selectedLot = data.lots[lotIndex];
+
+      if (isNaN(quantity) || quantity <= 0 || quantity > selectedLot.quantity) {
+        showMessage(`품목(${data.staticInfo.itemName})의 수량이 잘못되었거나 재고를 초과합니다.`, "error");
+        allValid = false;
+        return;
+      }
+
+      requests.push({
+        shippingDate: row.querySelector(`[name="shippingDate"]`).value, 
+        itemCode: row.querySelector(`[name="itemCode"]`).value.trim(),
+        itemName: data.staticInfo.itemName, 
+        lotNumber: selectedLot.lotNumber, 
+        quantity: quantity,
+        boxQty: row.querySelector(`[name="boxQty"]`).value, 
+        palletQty: row.querySelector(`[name="palletQty"]`).value,
+        packSize: data.staticInfo.packSize, 
+        mfgDate: selectedLot.mfgDate, 
+        expDate: selectedLot.expDate
+      });
+    });
+
+    if (!allValid) { 
+      spinner.style.display = 'none'; 
+      return; 
+    }
+    if (requests.length === 0) {
+      showMessage("출고할 품목을 1개 이상 올바르게 입력해주세요.", "error");
+      spinner.style.display = 'none';
+      return;
+    }
+
+    showMessage("출고 요청을 기록하는 중...", "info");
+    google.script.run
+      .withSuccessHandler(res => {
+        spinner.style.display = 'none';
+        showMessage(res.message, res.success ? "success" : "error");
+        if (res.success) {
+          document.getElementById("item-rows-container").innerHTML = "";
+          requestState.itemCounter = 0;
+          requestState.rowDataStore = {};
+          addRequestItemRow();
+        }
+      })
+      .withFailureHandler(err => {
+        spinner.style.display = 'none';
+        showMessage(`서버 오류: ${err.message}`, "error");
+      })
+      .submitShipmentRequest(requests);
+  }
+</script>
