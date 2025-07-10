@@ -72,12 +72,9 @@
     newCard.className = "item-card";
     newCard.id = `item-card-${rowId}`;
 
-    const deleteButtonHtml = requestState.itemCounter > 1 ? `<button class="button-danger" onclick="removeRequestItemRow(this)">삭제</button>`: '';
-
     newCard.innerHTML = `
       <div class="item-card-header">
-        <h3>출고 품목 ${requestState.itemCounter}</h3>
-        ${deleteButtonHtml}
+        <h3></h3>
       </div>
       <div class="item-grid">
         <div class="form-group"><label>요청일</label><input type="date" name="shippingDate" class="editable" value="${new Date().toISOString().slice(0, 10)}"></div>
@@ -112,9 +109,21 @@
     const allItemCards = document.querySelectorAll('#item-rows-container .item-card');
     allItemCards.forEach((card, index) => {
         const itemNumber = index + 1;
-        card.querySelector('h3').textContent = `출고 품목 ${itemNumber}`;
+        const header = card.querySelector('.item-card-header');
+        header.querySelector('h3').textContent = `출고 품목 ${itemNumber}`;
+        
+        let deleteBtn = header.querySelector('.button-danger');
+
+        if (itemNumber > 1 && !deleteBtn) {
+            const newBtn = document.createElement('button');
+            newBtn.className = 'button-danger';
+            newBtn.textContent = '삭제';
+            newBtn.onclick = () => removeRequestItemRow(newBtn);
+            header.appendChild(newBtn);
+        } else if (itemNumber === 1 && deleteBtn) {
+            deleteBtn.remove();
+        }
     });
-    requestState.itemCounter = allItemCards.length;
   }
 
   function onLotChange(rowId) {
