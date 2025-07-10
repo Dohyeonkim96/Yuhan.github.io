@@ -1,0 +1,361 @@
+<style>
+  /* 이 페이지에만 적용되는 스타일 */
+  .order-item-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    background-color: var(--card-bg);
+  }
+  .order-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+  }
+  .order-item-header h3 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 1.1em;
+    font-weight: 500;
+  }
+  .order-item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-sm) var(--spacing-md);
+  }
+  .order-item-grid .full-width {
+    grid-column: 1 / -1;
+  }
+
+  .main-actions-container {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .filter-controls {
+    padding: var(--spacing-md);
+    background-color: #fdfdfe;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-md);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-md);
+    align-items: flex-end;
+  }
+  .filter-controls .form-group { margin-bottom: 0; }
+  
+  .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--font-size-sm);
+  }
+  .data-table th, .data-table td {
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: right;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .data-table th {
+    background-color: #f8f9fa;
+    font-weight: 700;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+  }
+  .data-table tfoot {
+    font-weight: bold;
+    background-color: #f1f3f4;
+  }
+  .data-table th:first-child, .data-table td:first-child,
+  .data-table th:nth-child(2), .data-table td:nth-child(2),
+  .data-table th:nth-child(3), .data-table td:nth-child(3) {
+    text-align: left;
+  }
+  .data-table .clickable-item-name {
+    color: var(--primary-color);
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  
+  .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
+  .modal-content { background-color: var(--card-bg); margin: 10% auto; padding: var(--spacing-lg); border-radius: var(--border-radius-md); width: 90%; max-width: 600px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h3 { margin-top:0; color: var(--primary-color); font-size: var(--font-size-title-section); }
+  .close-button { color: var(--text-color-secondary); font-size: 28px; font-weight: bold; cursor: pointer; }
+  #details-tbody + tfoot td { border-top: 2px solid var(--secondary-color); font-weight: bold; }
+</style>
+
+<div class="section-card" id="order-creation-section">
+  <h1 class="page-main-title">발주서 생성</h1>
+  <div id="creationMessageArea" class="message"></div>
+  <div id="orderItemsContainer"></div>
+  <div class="main-actions-container">
+    <button class="button-primary" onclick="submitOrder()">발주 등록 <span id="submitSpinner" class="loading-spinner"></span></button>
+    <button class="button-secondary" onclick="addOrderItem()">품목 추가</button>
+  </div>
+</div>
+
+<div class="section-card" id="order-status-section" style="margin-top:2rem;">
+  <h2 class="section-title">발주 현황</h2>
+  <div id="statusMessageArea" class="message"></div>
+  <div class="filter-controls">
+      <div class="form-group"><label for="bu-filter">사업부</label><select id="bu-filter" onchange="fetchOrderStatusData()"></select></div>
+      <div class="form-group"><label for="category-filter">카테고리</label><select id="category-filter" onchange="fetchOrderStatusData()"></select></div>
+      <div class="form-group"><label for="filterYuhanPartNo">유한품번</label><input type="text" id="filterYuhanPartNo" class="editable" placeholder="품번으로 검색"></div>
+      <div class="form-group"><button class="button-secondary" onclick="fetchOrderStatusData()">조회 <span id="filterSpinner" class="loading-spinner"></span></button></div>
+  </div>
+  <div style="overflow-x: auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>유한품번</th><th>지에스켐 품번</th><th>품명</th><th>PO 수량</th></tr>
+      </thead>
+      <tbody id="order-status-tbody"></tbody>
+      <tfoot id="order-status-tfoot"></tfoot>
+    </table>
+  </div>
+</div>
+
+<div id="order-details-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-title">상세 발주 내역</h3>
+      <span class="close-button" onclick="closeDetailsModal()">&times;</span>
+    </div>
+    <div style="overflow-y: auto; max-height: 400px;">
+      <table class="data-table">
+        <thead><tr><th>발주일자</th><th style="text-align:right;">발주수량</th></tr></thead>
+        <tbody id="details-tbody"></tbody>
+        <tfoot id="details-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let dashboardDataStore = [];
+  let areFiltersPopulated = false;
+
+  (function initializePage() {
+    addOrderItem();
+    fetchOrderStatusData();
+    window.addEventListener('click', e => { if (e.target.id === 'order-details-modal') closeDetailsModal(); });
+  })();
+
+  function addOrderItem() {
+    const container = document.getElementById('orderItemsContainer');
+    const itemNumber = container.children.length + 1;
+    const newItemDiv = document.createElement('div');
+    newItemDiv.className = 'order-item-card';
+    const deleteButtonHtml = itemNumber > 1 ? `<button class="button-danger" onclick="removeOrderItem(this)">이 품목 삭제</button>` : '';
+    newItemDiv.innerHTML = `
+      <div class="order-item-header">
+        <h3>품목 ${itemNumber}</h3>
+        ${deleteButtonHtml}
+      </div>
+      <div class="order-item-grid">
+        <div class="form-group"><label>발주일*</label><input type="date" name="issueDate" class="editable" value="${new Date().toISOString().slice(0, 10)}"></div>
+        <div class="form-group"><label>사업부</label><input type="text" name="businessUnit" readonly></div>
+        <div class="form-group"><label>유한품번*</label><input type="text" name="yuhanPartNo" class="editable" onchange="getYuhanInfo(this.closest('.order-item-card'))" placeholder="유한품번 입력"></div>
+        <div class="form-group"><label>지에스켐 품번</label><input type="text" name="gskemPartNo" readonly></div>
+        <div class="form-group full-width"><label>품명*</label><input type="text" name="itemName" readonly></div>
+        <div class="form-group"><label>수량*</label><input type="number" name="quantity" class="editable" placeholder="수량" min="1"></div>
+        <div class="form-group"><label>납기일*</label><input type="date" name="deliveryDate" class="editable"></div>
+      </div>
+    `;
+    container.appendChild(newItemDiv);
+  }
+
+  function removeOrderItem(button) {
+    button.closest('.order-item-card').remove();
+    renumberOrderItems();
+  }
+
+  function renumberOrderItems() {
+    const allItemCards = document.querySelectorAll('#orderItemsContainer .order-item-card');
+    allItemCards.forEach((card, index) => {
+      const itemNumber = index + 1;
+      card.querySelector('.order-item-header h3').textContent = `품목 ${itemNumber}`;
+      let deleteBtn = card.querySelector('.button-danger');
+      if (itemNumber > 1 && !deleteBtn) {
+        const header = card.querySelector('.order-item-header');
+        const newBtn = document.createElement('button');
+        newBtn.className = 'button-danger';
+        newBtn.textContent = '이 품목 삭제';
+        newBtn.onclick = () => removeOrderItem(newBtn);
+        header.appendChild(newBtn);
+      } else if (itemNumber === 1 && deleteBtn) {
+        deleteBtn.remove();
+      }
+    });
+  }
+
+  function getYuhanInfo(itemCard) {
+    const yuhanPartNo = itemCard.querySelector('[name="yuhanPartNo"]').value.trim();
+    const gskemInput = itemCard.querySelector('[name="gskemPartNo"]');
+    const nameInput = itemCard.querySelector('[name="itemName"]');
+    const buInput = itemCard.querySelector('[name="businessUnit"]');
+    // 필드 초기화
+    gskemInput.value = ''; nameInput.value = ''; buInput.value = '';
+    if (!yuhanPartNo) return;
+
+    showMessage('품번 정보 조회 중...', 'info', '#creationMessageArea');
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res && res.error) {
+          showMessage(`조회 오류: ${res.error}`, 'error', '#creationMessageArea');
+          return;
+        }
+        if (res) {
+            gskemInput.value = res.지에스켐품번 || ''; 
+            nameInput.value = res.품명 || ''; 
+            buInput.value = res.사업부 || '';
+            showMessage('품번 정보가 조회되었습니다.', 'success', '#creationMessageArea');
+        } else {
+            nameInput.value = '일치하는 품번 없음'; 
+            showMessage('일치하는 품번 정보가 없습니다.', 'error', '#creationMessageArea');
+        }
+      })
+      .withFailureHandler(err => showMessage(`조회 오류: ${err.message}`, 'error', '#creationMessageArea'))
+      .getYuhanProductInfo(yuhanPartNo);
+  }
+
+  function submitOrder() {
+    const spinner = document.getElementById('submitSpinner');
+    spinner.style.display = 'inline-block';
+    const orders = Array.from(document.querySelectorAll('#orderItemsContainer .order-item-card')).map(card => ({
+      issueDate: card.querySelector('[name="issueDate"]').value, 
+      yuhanPartNo: card.querySelector('[name="yuhanPartNo"]').value.trim(),
+      itemName: card.querySelector('[name="itemName"]').value.trim(), 
+      quantity: card.querySelector('[name="quantity"]').value,
+      deliveryDate: card.querySelector('[name="deliveryDate"]').value, 
+      businessUnit: card.querySelector('[name="businessUnit"]').value.trim(),
+      gskemPartNo: card.querySelector('[name="gskemPartNo"]').value.trim()
+    })).filter(o => o.yuhanPartNo && o.itemName && o.itemName !== '일치하는 품번 없음' && o.quantity > 0 && o.deliveryDate);
+    
+    if (orders.length === 0) {
+      showMessage('제출할 유효한 품목이 없습니다. 필수 항목(*)을 확인해주세요.', 'error', '#creationMessageArea');
+      spinner.style.display = 'none';
+      return;
+    }
+
+    showMessage('발주서 등록 중...', 'info', '#creationMessageArea');
+    google.script.run
+      .withSuccessHandler(res => {
+        spinner.style.display = 'none';
+        showMessage(res.message, res.success ? 'success' : 'error', '#creationMessageArea');
+        if (res.success) {
+            document.getElementById('orderItemsContainer').innerHTML = '';
+            addOrderItem();
+            fetchOrderStatusData(); // 성공 시 현황 다시 로드
+        }
+      })
+      .withFailureHandler(err => { 
+        spinner.style.display = 'none'; 
+        showMessage(`서버 오류: ${err.message}`, 'error', '#creationMessageArea'); 
+      })
+      .submitOrderToSheet(orders);
+  }
+
+  function fetchOrderStatusData() {
+    const spinner = document.getElementById('filterSpinner');
+    spinner.style.display = 'inline-block';
+    const filters = {
+      yuhanPartNo: document.getElementById('filterYuhanPartNo').value.trim(),
+      category: document.getElementById('category-filter').value || '',
+      businessUnit: document.getElementById('bu-filter').value || ''
+    };
+    google.script.run
+      .withSuccessHandler(data => {
+        spinner.style.display = 'none';
+        if (data.error) { 
+          showMessage('데이터 조회 오류: ' + data.error, 'error', '#statusMessageArea'); 
+          return; 
+        }
+        dashboardDataStore = data.results;
+        if (!areFiltersPopulated) {
+          populateFilters(data.categories, data.businessUnits);
+          areFiltersPopulated = true;
+        }
+        renderOrderStatusTable(dashboardDataStore);
+      })
+      .withFailureHandler(err => { 
+        spinner.style.display = 'none'; 
+        showMessage('서버 통신 오류: ' + err.message, 'error', '#statusMessageArea'); 
+      })
+      .getOrderStatusDashboardData(filters);
+  }
+
+  function populateFilters(categories, businessUnits) {
+    const categoryFilter = document.getElementById('category-filter');
+    const buFilter = document.getElementById('bu-filter');
+    
+    categoryFilter.innerHTML = '<option value="">전체 카테고리</option>';
+    if (categories && categories.length > 0) {
+        categories.forEach(cat => categoryFilter.add(new Option(cat, cat)));
+    } else {
+        categoryFilter.add(new Option('항목 없음', '', true, true)).disabled = true;
+    }
+
+    buFilter.innerHTML = '<option value="">전체 사업부</option>';
+    if (businessUnits && businessUnits.length > 0) {
+        businessUnits.forEach(bu => buFilter.add(new Option(bu, bu)));
+    } else {
+        buFilter.add(new Option('항목 없음', '', true, true)).disabled = true;
+    }
+  }
+
+  function renderOrderStatusTable(data) {
+    const tbody = document.getElementById('order-status-tbody');
+    const tfoot = document.getElementById('order-status-tfoot');
+    tbody.innerHTML = "";
+    tfoot.innerHTML = "";
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px;">해당 조건의 발주 내역이 없습니다.</td></tr>';
+      return;
+    }
+
+    const totalPoQuantity = data.reduce((sum, item) => sum + item.balance, 0);
+
+    data.forEach(item => {
+      tbody.insertRow().innerHTML = `
+        <td>${item.itemCode}</td> <td>${item.gskemPN}</td>
+        <td><span class="clickable-item-name" onclick="showOrderDetails('${item.itemCode}')">${item.itemName}</span></td>
+        <td style="font-weight:bold;">${formatNumberWithCommas(item.balance)}</td>
+      `;
+    });
+
+    tfoot.insertRow().innerHTML = `
+        <td colspan="3" style="text-align: center;">합계</td>
+        <td style="text-align: right;">${formatNumberWithCommas(totalPoQuantity)}</td>
+    `;
+  }
+
+  function showOrderDetails(itemCode) {
+    const itemData = dashboardDataStore.find(item => item.itemCode === itemCode);
+    if (!itemData) return;
+    document.getElementById('modal-title').textContent = `[${itemData.itemName}] 상세 발주 내역`;
+    const detailsTbody = document.getElementById('details-tbody');
+    const detailsTfoot = document.getElementById('details-tfoot');
+    detailsTbody.innerHTML = ''; detailsTfoot.innerHTML = '';
+    let subtotal = 0;
+    itemData.transactions.forEach(tx => {
+      detailsTbody.insertRow().innerHTML = `<td>${tx.date}</td><td style="text-align:right;">${formatNumberWithCommas(tx.qty)}</td>`;
+      subtotal += tx.qty;
+    });
+    detailsTfoot.insertRow().innerHTML = `<td style="text-align:center;"><b>소계</b></td><td style="text-align:right;"><b>${formatNumberWithCommas(subtotal)}</b></td>`;
+    document.getElementById('order-details-modal').style.display = 'block';
+  }
+
+  function closeDetailsModal() {
+    document.getElementById('order-details-modal').style.display = 'none';
+  }
+</script>
