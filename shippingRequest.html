@@ -153,13 +153,18 @@
     if (!row || !rowData) return;
 
     const quantity = parseInt(row.querySelector(`[name="quantity"]`).value) || 0;
-    const packSize = rowData.staticInfo.packSize;
-    const itemsPerPallet = rowData.staticInfo.itemsPerPallet;
+    const packSize = Number(rowData.staticInfo.packSize) || 0;
+    const itemsPerPallet = Number(rowData.staticInfo.itemsPerPallet) || 0;
     const validationMsgEl = row.querySelector(`[name="validation-msg"]`);
 
-    row.querySelector(`[name="boxQty"]`).value = (packSize > 0) ? (quantity / packSize).toFixed(2) : 'N/A';
+    // [수정] BOX 수량 계산 로직: .toFixed(2) 제거하여 정수로 표시되도록 하고, 0일 경우 빈 값 처리
+    row.querySelector(`[name="boxQty"]`).value = (packSize > 0 && quantity > 0) ? (quantity / packSize) : "";
+    
+    // [수정] 파렛트 수량 계산 로직: 0일 경우 빈 값 처리
+    row.querySelector(`[name="palletQty"]`).value = (itemsPerPallet > 0 && quantity > 0) ? (quantity / itemsPerPallet).toFixed(1) : "";
+
+    // 유효성 검사 메시지 로직은 그대로 유지
     validationMsgEl.textContent = (packSize > 0 && quantity > 0 && quantity % packSize !== 0) ? "BOX 단위로 입력해주세요." : "";
-    row.querySelector(`[name="palletQty"]`).value = (itemsPerPallet > 0) ? (quantity / itemsPerPallet).toFixed(1) : 'N/A';
   }
 
   function fetchItemDetails(rowId) {
