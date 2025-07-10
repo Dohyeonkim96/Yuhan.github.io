@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>통합 재고관리 시스템</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  
+  <style>
+    /* =================================================================
+     * 통합 관리 시스템 CSS v2 - styles-v2.css.html
+     * @description
+     * - CSS 변수를 사용한 디자인 시스템 정의
+     * - 전체 애플리케이션의 공통 컴포넌트 스타일링
+     * ================================================================= */
+
+    /* -----------------------------------------
+     * :root - 디자인 시스템 변수 정의
+     * ----------------------------------------- */
+    :root {
+      /* 기본 색상 */
+      --primary-color: #0d6efd;   /* 주요 색상 (GNB, 주요 버튼 등) */
+      --secondary-color: #6c757d; /* 보조 색상 (보조 버튼 등) */
+      --accent-color: #e9ecef;    /* 강조 색상 (활성 링크 배경 등) */
+      
+      /* 상태별 색상 */
+      --success-color: #198754;
+      --info-color: #0dcaf0;
+      --warning-color: #ffc107;
+      --danger-color: #dc3545;
+
+      /* 텍스트 색상 */
+      --text-color-primary: #212529;
+      --text-color-secondary: #495057;
+      --label-color: #6c757d;
+
+      /* 배경 색상 */
+      --page-bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --input-bg-editable: #fff;
+      --input-bg-readonly: #e9ecef;
+      
+      /* 테두리 */
+      --border-color: #dee2e6;
+      --border-radius-sm: 0.25rem;
+      --border-radius-md: 0.375rem;
+
+      /* 간격 */
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 16px;
+      --spacing-lg: 24px;
+      --spacing-xl: 32px;
+
+      /* 글꼴 */
+      --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-size-base: 1rem;
+      --font-size-sm: 0.875rem;
+      --font-size-label: 0.85rem;
+      --font-size-input: 1rem;
+      --font-size-title-main: 1.5rem;
+      --font-size-title-section: 1.25rem;
+
+      /* 그림자 */
+      --box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    }
+
+    /* -----------------------------------------
+     * 글로벌 스타일 & 리셋
+     * ----------------------------------------- */
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-family-base);
+      font-size: var(--font-size-base);
+      color: var(--text-color-primary);
+      background-color: var(--page-bg);
+    }
+
+    /* -----------------------------------------
+     * 공통 레이아웃
+     * ----------------------------------------- */
+    .section-card {
+      background-color: var(--card-bg);
+      padding: var(--spacing-lg);
+      border-radius: var(--border-radius-md);
+      box-shadow: var(--box-shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .page-main-title {
+      font-size: var(--font-size-title-main);
+      margin: 0 0 var(--spacing-lg) 0;
+      color: var(--primary-color);
+    }
+
+    .section-title {
+      font-size: var(--font-size-title-section);
+      margin: 0 0 var(--spacing-md) 0;
+      padding-bottom: var(--spacing-sm);
+      border-bottom: 2px solid var(--primary-color);
+    }
+
+    /* -----------------------------------------
+     * 공통 컴포넌트
+     * ----------------------------------------- */
+
+    /* 버튼 */
+    .button, button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 16px;
+      font-size: var(--font-size-base);
+      font-weight: 500;
+      border: 1px solid transparent;
+      border-radius: var(--border-radius-sm);
+      cursor: pointer;
+      transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      line-height: 1.5;
+      white-space: nowrap;
+    }
+
+    .button-primary {
+      color: #fff;
+      background-color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    .button-primary:hover { background-color: #0b5ed7; }
+
+    .button-secondary {
+      color: #fff;
+      background-color: var(--secondary-color);
+      border-color: var(--secondary-color);
+    }
+    .button-secondary:hover { background-color: #5c636a; }
+
+    .button-danger {
+      color: #fff;
+      background-color: var(--danger-color);
+      border-color: var(--danger-color);
+    }
+    .button-danger:hover { background-color: #bb2d3b; }
+
+    /* 폼 요소 */
+    .form-group {
+      margin-bottom: var(--spacing-md);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group label {
+      margin-bottom: var(--spacing-sm);
+      font-size: var(--font-size-label);
+      font-weight: 500;
+      color: var(--label-color);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select {
+      padding: var(--spacing-sm) var(--spacing-md);
+      font-size: var(--font-size-input);
+      line-height: 1.5;
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius-sm);
+      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      height: calc(var(--font-size-input) + 22px);
+    }
+
+    input.editable, select.editable {
+        background-color: var(--input-bg-editable);
+    }
+
+    input:read-only, input[readonly] {
+      background-color: var(--input-bg-readonly);
+      cursor: not-allowed;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    /* 메시지 영역 */
+    .message {
+      padding: var(--spacing-md);
+      margin-bottom: var(--spacing-md);
+      border-radius: var(--border-radius-sm);
+      border: 1px solid transparent;
+      display: none; /* 기본적으로 숨김 */
+    }
+    .message.success {
+      color: #0f5132;
+      background-color: #d1e7dd;
+      border-color: #badbcc;
+      display: block;
+    }
+    .message.error {
+      color: #842029;
+      background-color: #f8d7da;
+      border-color: #f5c2c7;
+      display: block;
+    }
+    .message.info {
+      color: #055160;
+      background-color: #cff4fc;
+      border-color: #b6effb;
+      display: block;
+    }
+
+    /* 로딩 스피너 */
+    .loading-spinner {
+      display: none;
+      width: 1em;
+      height: 1em;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spinner-border .75s linear infinite;
+      vertical-align: text-bottom;
+      margin-left: var(--spacing-sm);
+    }
+
+    @keyframes spinner-border {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+
+  <style>
+    /* 메인 레이아웃 스타일 */
+    html, body { height: 100vh; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    .gnb { flex-shrink: 0; display: flex; align-items: center; padding: 0 var(--spacing-lg); background-color: var(--primary-color); color: white; height: 55px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 1001; }
+    .gnb-title { font-size: 1.25rem; font-weight: bold; }
+    .gnb-menu { margin-left: auto; display: flex; gap: var(--spacing-md); }
+    .gnb-menu a { color: white; text-decoration: none; font-weight: 500; padding: var(--spacing-sm) var(--spacing-md); border-radius: var(--border-radius-sm); transition: background-color 0.2s; font-size: 1rem; }
+    .gnb-menu a:hover, .gnb-menu a.active { background-color: rgba(255,255,255,0.15); }
+    .app-body { display: flex; flex-grow: 1; overflow: hidden; }
+    .lnb { flex-shrink: 0; width: 230px; background-color: var(--card-bg); border-right: 1px solid var(--border-color); padding: var(--spacing-lg); overflow-y: auto; transition: width 0.3s ease-in-out; }
+    .lnb-title { font-size: 1.1rem; font-weight: bold; color: var(--primary-color); margin-bottom: var(--spacing-md); padding-bottom: var(--spacing-sm); border-bottom: 1px solid var(--border-color);}
+    .lnb ul { list-style: none; padding: 0; margin: 0; }
+    .lnb li a { display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-sm) var(--spacing-md); text-decoration: none; color: var(--text-color-secondary); border-radius: var(--border-radius-sm); font-weight: 500; font-size: 0.95rem; transition: background-color 0.2s, color 0.2s; }
+    .lnb li a i { width: 18px; text-align: center; color: #90a4ae; }
+    .lnb li a:hover { background-color: var(--page-bg); color: var(--text-color-primary); }
+    .lnb li a.active { background-color: var(--accent-color); color: var(--primary-color); font-weight: bold; }
+    .lnb li a.active i { color: var(--primary-color); }
+    .content-wrapper { flex-grow: 1; overflow-y: auto; padding: var(--spacing-lg); }
+    #content-area.loading { opacity: 0.3; pointer-events: none; }
+    .mobile-menu-toggle { display: none; }
+    @media (max-width: 768px) {
+        .app-body { position: relative; }
+        .lnb { position: absolute; left: 0; top: 0; bottom: 0; z-index: 1000; box-shadow: 2px 0 5px rgba(0,0,0,0.2); transform: translateX(-100%); transition: transform 0.3s ease-in-out; }
+        .lnb.open { transform: translateX(0); }
+        .mobile-menu-toggle { display: block; color: white; font-size: 1.2rem; margin-right: var(--spacing-md); background: none; border: none; cursor: pointer; }
+        .gnb-title { margin-left: auto; }
+        .gnb-menu { display: none; } 
+        .backdrop { display: none; position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.3); z-index: 999;}
+        .backdrop.visible { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <header class="gnb">
+    <button class="mobile-menu-toggle" onclick="toggleLnb()"><i class="fas fa-bars"></i></button>
+    <div class="gnb-title">통합 관리 시스템</div>
+    <nav class="gnb-menu">
+      <a href="#orderMgmt" data-app="orderMgmt" class="gnb-link active" onclick="handleGnbClick(event)">발주/재고 관리</a>
+      <a href="#shippingSummary" data-app="shippingSummary" class="gnb-link" onclick="handleGnbClick(event)">출고 요약</a>
+    </nav>
+  </header>
+  <div class="app-body">
+    <nav class="lnb" id="lnb"></nav>
+    <main class="content-wrapper">
+      <div id="content-area"></div>
+    </main>
+    <div class="backdrop" id="backdrop" onclick="toggleLnb()"></div>
+  </div>
+  
+  <script>
+    /**
+     * 사용자에게 피드백 메시지를 지정된 영역에 표시합니다.
+     * @param {string} text - 표시할 메시지 내용
+     * @param {'success'|'error'|'info'} type - 메시지 종류 (CSS 클래스에 사용됨)
+     * @param {string} [targetSelector='#content-area .message'] - 메시지를 표시할 요소의 CSS 선택자
+     * @param {number} [timeout=4000] - 메시지가 자동으로 사라지기까지의 시간 (ms)
+     */
+    function showMessage(text, type, targetSelector = '#content-area .message', timeout = 4000) {
+      const messageArea = document.querySelector(targetSelector);
+      if (!messageArea) {
+        console.error("Message area not found with selector:", targetSelector);
+        alert(text); // 최후의 수단
+        return;
+      }
+      messageArea.textContent = text;
+      messageArea.className = 'message ' + type;
+      messageArea.style.display = 'block';
+
+      if (messageArea.timerId) clearTimeout(messageArea.timerId);
+      
+      messageArea.timerId = setTimeout(() => {
+        messageArea.textContent = '';
+        messageArea.style.display = 'none';
+      }, timeout);
+    }
+
+    /**
+     * 숫자를 천 단위 콤마가 포함된 문자열로 포맷합니다.
+     * @param {string|number} number - 포맷할 숫자 또는 숫자 문자열
+     * @returns {string} 포맷된 숫자 문자열 또는 빈 문자열
+     */
+    function formatNumberWithCommas(number) {
+      const num = Number(String(number).replace(/,/g, ''));
+      if (number === null || number === undefined || String(number).trim() === "" || isNaN(num)) {
+        return "";
+      }
+      return num.toLocaleString('ko-KR');
+    }
+  </script>
+
+  <script>
+    const lnbMenus = {
+      orderMgmt: {
+        title: '발주/재고 관리',
+        items: [
+          { page: 'index', text: '발주서 생성/현황', icon: 'fa-file-invoice' },
+          { page: 'poStatus', text: 'PO 잔량 조회', icon: 'fa-file-circle-question' },
+          { page: 'stockReceiving', text: '입고 등록', icon: 'fa-dolly' },
+          { page: 'inventoryLookup', text: '재고 현황 조회', icon: 'fa-boxes-stacked' },
+          { page: 'productionPlan', text: '생산 계획 관리', icon: 'fa-calendar-days' },
+          { page: 'shippingRequest', text: '출고 요청', icon: 'fa-truck-fast' },
+          { page: 'shippingConfirmation', text: '출고 요청 확인', icon: 'fa-clipboard-check' },
+          { page: 'deliveryHistory', text: '납품 이력 조회', icon: 'fa-history' }
+        ]
+      },
+      shippingSummary: {
+        title: '출고 요약',
+        items: [
+          { page: 'shippingSummary', text: '월별 수량 조회', icon: 'fa-chart-bar' }
+        ]
+      }
+    };
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      // URL 파라미터를 사용하여 초기 페이지 로드 (없으면 기본값 사용)
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialApp = urlParams.get('app') || 'orderMgmt';
+      const initialPage = urlParams.get('page') || 'index';
+      
+      updateLnb(initialApp);
+      navigateTo(initialApp, initialPage, false); // 처음 로드 시에는 history state를 교체
+      
+      // 뒤로가기/앞으로가기 이벤트 처리
+      window.onpopstate = e => {
+        if (e.state) {
+          navigateTo(e.state.app, e.state.page, false);
+        }
+      };
+    });
+    
+    function handleGnbClick(e) {
+      e.preventDefault();
+      const app = e.target.dataset.app;
+      const firstPage = lnbMenus[app].items[0].page;
+      updateLnb(app);
+      navigateTo(app, firstPage, true);
+    }
+    
+    function handleLnbClick(e) {
+      e.preventDefault();
+      navigateTo(e.currentTarget.dataset.app, e.currentTarget.dataset.page, true);
+      if (window.innerWidth <= 768) {
+        toggleLnb();
+      }
+    }
+    
+    function navigateTo(app, page, pushState) {
+      const url = `?app=${app}&page=${page}`;
+      // 현재 URL과 다를 경우에만 history 상태 변경 및 페이지 로드
+      if (window.location.search !== url) {
+        if (pushState) {
+          history.pushState({ app, page }, '', url);
+        } else {
+          history.replaceState({ app, page }, '', url);
+        }
+      }
+      updateActiveLinks(app, page);
+      loadPageContent(page);
+    }
+    
+    function updateLnb(app) {
+      const lnb = document.getElementById('lnb');
+      const menuData = lnbMenus[app];
+      if (!menuData) { lnb.innerHTML = ''; return; }
+      let html = `<h2 class="lnb-title">${menuData.title}</h2><ul>`;
+      menuData.items.forEach(item => {
+        html += `<li><a href="#" class="lnb-link" data-app="${app}" data-page="${item.page}" onclick="handleLnbClick(event)"><i class="fas ${item.icon}"></i><span>${item.text}</span></a></li>`;
+      });
+      lnb.innerHTML = html + `</ul>`;
+    }
+    
+    function updateActiveLinks(app, page) {
+      document.querySelectorAll('.gnb-link').forEach(l => l.classList.toggle('active', l.dataset.app === app));
+      document.querySelectorAll('.lnb-link').forEach(l => l.classList.toggle('active', l.dataset.page === page));
+    }
+    
+    function toggleLnb() {
+      document.getElementById('lnb').classList.toggle('open');
+      document.getElementById('backdrop').classList.toggle('visible');
+    }
+    
+    function loadPageContent(page) {
+      const contentArea = document.getElementById('content-area');
+      contentArea.classList.add('loading');
+      
+      // 이전에 동적으로 추가된 모든 스크립트를 제거
+      Array.from(document.querySelectorAll('script[data-dynamic-script]')).forEach(oldScript => {
+        oldScript.remove();
+      });
+
+      google.script.run
+        .withSuccessHandler(html => {
+          contentArea.innerHTML = html;
+          // 새로 로드된 HTML 내의 스크립트를 찾아서 실행
+          Array.from(contentArea.querySelectorAll("script")).forEach(script => {
+            const newScript = document.createElement("script");
+            newScript.setAttribute('data-dynamic-script', 'true'); // 동적 스크립트임을 표시
+            if(script.src) {
+                newScript.src = script.src;
+                // 외부 스크립트 로드 완료 후 실행할 콜백이 필요하다면 여기에 추가
+            } else {
+                newScript.textContent = script.textContent;
+            }
+            document.body.appendChild(newScript);
+          });
+          contentArea.classList.remove('loading');
+        })
+        .withFailureHandler(error => {
+          contentArea.innerHTML = `<div class="message error">페이지 로드 오류: ${error.message}</div>`;
+          contentArea.classList.remove('loading');
+        })
+        .getPageContent(page);
+    }
+  </script>
+</body>
+</html>
