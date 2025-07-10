@@ -1,0 +1,185 @@
+<style>
+  .filter-controls {
+    padding: var(--spacing-md); background-color: #fdfdfe;
+    border: 1px solid var(--border-color); border-radius: var(--border-radius-md);
+    margin-bottom: var(--spacing-md); display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--spacing-md); align-items: flex-end;
+  }
+  .filter-controls .form-group { margin-bottom: 0; }
+  
+  .data-table {
+    width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--font-size-sm);
+  }
+  .data-table th, .data-table td {
+    border-bottom: 1px solid var(--border-color); padding: var(--spacing-sm) var(--spacing-md);
+    text-align: right; white-space: nowrap; vertical-align: middle;
+  }
+  .data-table th { background-color: #f8f9fa; font-weight: 700; text-align: center; border-top: 1px solid var(--border-color); }
+  .data-table tfoot { font-weight: bold; background-color: #f1f3f4; }
+  .data-table th:nth-child(-n+3), .data-table td:nth-child(-n+3) { text-align: left; }
+  .data-table .clickable-item-name { color: var(--primary-color); text-decoration: underline; cursor: pointer; font-weight: 500; }
+  .data-table .balance-cell { font-weight: bold; color: var(--danger-color); }
+  
+  .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(30, 41, 59, 0.6); }
+  .modal-content { background-color: var(--card-bg); margin: 10% auto; padding: var(--spacing-lg); border-radius: var(--border-radius-md); width: 90%; max-width: 600px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h3 { margin-top:0; color: var(--primary-color); }
+  .close-button { font-size: 28px; font-weight: bold; cursor: pointer; }
+</style>
+
+<div class="section-card">
+  <h1 class="page-main-title">PO(발주) 현황</h1>
+  <div id="messageArea" class="message"></div>
+  
+  <div class="filter-controls">
+      <div class="form-group"><label for="bu-filter">사업부</label><select id="bu-filter" onchange="fetchPoStatus()"></select></div>
+      <div class="form-group"><label for="category-filter">카테고리</label><select id="category-filter" onchange="fetchPoStatus()"></select></div>
+      <div class="form-group"><label for="pn-filter">유한품번</label><input type="text" id="pn-filter" class="editable" placeholder="품번으로 검색"></div>
+      <div class="form-group"><button class="button-secondary" onclick="fetchPoStatus()">조회 <span id="loading-spinner" class="loading-spinner"></span></button></div>
+  </div>
+  
+  <div style="overflow-x: auto;">
+    <table class="data-table">
+      <thead>
+        <tr><th>유한품번</th><th>지에스켐 품번</th><th>품명</th><th>총 발주량</th><th>누적 납품량</th><th>PO 잔량</th></tr>
+      </thead>
+      <tbody id="po-status-tbody"></tbody>
+      <tfoot id="po-status-tfoot"></tfoot>
+    </table>
+  </div>
+</div>
+
+<div id="order-details-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modal-title">상세 발주 내역</h3>
+      <span class="close-button" onclick="closeDetailsModal()">&times;</span>
+    </div>
+    <div style="overflow-y: auto; max-height: 400px;">
+      <table class="data-table">
+        <thead><tr><th>발주일자</th><th style="text-align:right;">발주수량</th></tr></thead>
+        <tbody id="details-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let poStatusDataStore = [];
+  let areFiltersPopulated = false;
+
+  (function initializePage() {
+    fetchPoStatus();
+    window.addEventListener('click', e => { if (e.target.id === 'order-details-modal') closeDetailsModal(); });
+    const thisScript = document.currentScript;
+    new MutationObserver((m, o) => !document.contains(thisScript) && o.disconnect()).observe(document.body, { childList: true, subtree: true });
+  })();
+
+  function fetchPoStatus() {
+    const spinner = document.getElementById('loading-spinner');
+    spinner.style.display = 'inline-block';
+    
+    const filters = {
+      yuhanPartNo: document.getElementById('pn-filter').value.trim(),
+      category: document.getElementById('category-filter').value || '',
+      businessUnit: document.getElementById('bu-filter').value || ''
+    };
+    
+    google.script.run
+      .withSuccessHandler(data => {
+        spinner.style.display = 'none';
+        if (data.error) { 
+            showMessage('데이터 조회 오류: ' + data.error, 'error'); 
+            return; 
+        }
+        
+        // [수정] 서버에서 모든 계산을 처리하므로 클라이언트 측 계산 로직 제거
+        poStatusDataStore = data.results || [];
+        
+        if (!areFiltersPopulated) {
+          populateFilters(data.categories, data.businessUnits);
+          areFiltersPopulated = true;
+        }
+        renderPoStatusTable(poStatusDataStore);
+      })
+      .withFailureHandler(err => {
+        spinner.style.display = 'none';
+        showMessage('서버 통신 오류: ' + err.message, 'error');
+      })
+      // [수정] PO 잔량 상세 조회를 위한 올바른 함수 호출
+      .getPoStatusDetails(filters);
+  }
+
+  function populateFilters(categories, businessUnits) {
+    const categoryFilter = document.getElementById('category-filter');
+    const buFilter = document.getElementById('bu-filter');
+    
+    buFilter.innerHTML = '<option value="">전체 사업부</option>';
+    if (businessUnits && businessUnits.length > 0) {
+        businessUnits.forEach(bu => buFilter.add(new Option(bu, bu)));
+    } else {
+        buFilter.add(new Option('항목 없음', '', true, true)).disabled = true;
+    }
+
+    categoryFilter.innerHTML = '<option value="">전체 카테고리</option>';
+    if (categories && categories.length > 0) {
+        categories.forEach(cat => categoryFilter.add(new Option(cat, cat)));
+    } else {
+        categoryFilter.add(new Option('항목 없음', '', true, true)).disabled = true;
+    }
+  }
+
+  function renderPoStatusTable(data) {
+    const tbody = document.getElementById('po-status-tbody');
+    const tfoot = document.getElementById('po-status-tfoot');
+    tbody.innerHTML = "";
+    tfoot.innerHTML = "";
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">해당 조건의 발주 내역이 없습니다.</td></tr>';
+      return;
+    }
+
+    const totalBalance = data.reduce((sum, item) => sum + item.balance, 0);
+
+    data.forEach(item => {
+      tbody.insertRow().innerHTML = `
+        <td>${item.itemCode}</td>
+        <td>${item.gskemPN}</td>
+        <td><span class="clickable-item-name" onclick="showOrderDetails('${item.itemCode}')">${item.itemName}</span></td>
+        <td>${formatNumberWithCommas(item.totalOrdered)}</td>
+        <td>${formatNumberWithCommas(item.cumulativeDelivered)}</td>
+        <td class="balance-cell">${formatNumberWithCommas(item.balance)}</td>
+      `;
+    });
+
+    tfoot.insertRow().innerHTML = `
+        <td colspan="5" style="text-align: center;">PO 잔량 합계</td>
+        <td class="balance-cell">${formatNumberWithCommas(totalBalance)}</td>
+    `;
+  }
+
+  function showOrderDetails(itemCode) {
+    const itemData = poStatusDataStore.find(item => item.itemCode === itemCode);
+    if (!itemData) return;
+    
+    document.getElementById('modal-title').textContent = `[${itemData.itemName}] 상세 발주 내역`;
+    const detailsTbody = document.getElementById('details-tbody');
+    detailsTbody.innerHTML = '';
+    
+    if (itemData.transactions && itemData.transactions.length > 0) {
+        itemData.transactions.forEach(tx => {
+          detailsTbody.insertRow().innerHTML = `<td>${tx.date}</td><td style="text-align:right;">${formatNumberWithCommas(tx.qty)}</td>`;
+        });
+    } else {
+        detailsTbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">상세 발주 내역이 없습니다.</td></tr>';
+    }
+    
+    document.getElementById('order-details-modal').style.display = 'block';
+  }
+
+  function closeDetailsModal() {
+    document.getElementById('order-details-modal').style.display = 'none';
+  }
+</script>
