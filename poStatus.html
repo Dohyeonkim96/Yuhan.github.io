@@ -86,12 +86,30 @@
       businessUnit: document.getElementById('bu-filter').value || ''
     };
     
+    // [수정] 'getPoStatusDetails' 대신 'index.html'에서 사용하는 'getOrderStatusDashboardData' 함수로 변경
     google.script.run
       .withSuccessHandler(data => {
         spinner.style.display = 'none';
-        if (data.error) { showMessage('데이터 조회 오류: ' + data.error, 'error'); return; }
+        if (data.error) { 
+            showMessage('데이터 조회 오류: ' + data.error, 'error'); 
+            return; 
+        }
         
-        poStatusDataStore = data.results;
+        // [수정] 클라이언트 측에서 데이터 가공 로직 추가
+        if (data.results && Array.isArray(data.results)) {
+            data.results.forEach(item => {
+                // 'totalOrdered'는 모든 transaction 수량의 합계로 계산
+                if (item.transactions && Array.isArray(item.transactions)) {
+                    item.totalOrdered = item.transactions.reduce((sum, tx) => sum + (tx.qty || 0), 0);
+                } else {
+                    item.totalOrdered = 0;
+                }
+                // 'cumulativeDelivered' = 'totalOrdered' - 'balance'
+                item.cumulativeDelivered = item.totalOrdered - (item.balance || 0);
+            });
+        }
+        
+        poStatusDataStore = data.results || [];
         
         if (!areFiltersPopulated) {
           populateFilters(data.categories, data.businessUnits);
@@ -103,7 +121,7 @@
         spinner.style.display = 'none';
         showMessage('서버 통신 오류: ' + err.message, 'error');
       })
-      .getPoStatusDetails(filters);
+      .getOrderStatusDashboardData(filters); // [수정] 호출하는 서버 함수명 변경
   }
 
   function populateFilters(categories, businessUnits) {
@@ -163,9 +181,13 @@
     const detailsTbody = document.getElementById('details-tbody');
     detailsTbody.innerHTML = '';
     
-    itemData.transactions.forEach(tx => {
-      detailsTbody.insertRow().innerHTML = `<td>${tx.date}</td><td style="text-align:right;">${formatNumberWithCommas(tx.qty)}</td>`;
-    });
+    if (itemData.transactions && itemData.transactions.length > 0) {
+        itemData.transactions.forEach(tx => {
+          detailsTbody.insertRow().innerHTML = `<td>${tx.date}</td><td style="text-align:right;">${formatNumberWithCommas(tx.qty)}</td>`;
+        });
+    } else {
+        detailsTbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">상세 발주 내역이 없습니다.</td></tr>';
+    }
     
     document.getElementById('order-details-modal').style.display = 'block';
   }
